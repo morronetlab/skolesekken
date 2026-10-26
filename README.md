@@ -118,3 +118,11 @@ Fritidsaktivitetene er **familiens egne opplysninger** og ikke hentet fra skolen
 ### Rettelse i versjon 2.4.1
 
 Julie og Smilla har byttet danseuker. **Julie: uke 38, 43, 47. Smilla: uke 39, 44, 48.** Nora og Maya, samt tennisplanen, er uendret. I uke 44 går jentene hjem til **Smilla** for kjøring på tirsdag og torsdag.
+
+## Automatisk oppdatering og utgåtte dager – versjon 2.4.2
+
+- Nettsiden lastes automatisk på nytt **hver time** fra den åpnes. En ekstra klokkesjekk kjører hvert minutt og laster siden på nytt når datoen endres i tidssonen `Europe/Oslo`, slik at riktig dag velges etter midnatt.
+- Hvis en nettleser pauser tidsintervallene i en bakgrunnsfane, sjekkes dato og tidsfrist straks fanen blir aktiv eller får fokus igjen. Avkrysningene i pakkelisten lagres fortsatt lokalt.
+- Tidligere skoledager i samme uke vises nedtonet, merket «Utgått» og deaktivert med HTML `disabled`. Fremtidige dager og dagens dag er klikkbare.
+- Lørdag og søndag er alle fem skoledager utgått. Appen viser fredagens informasjon som en historisk oppsummering uten aktivt dagkort, og gir beskjed om at neste uke vises fra mandag.
+- Datoer, uker og utgått-status følger norsk tid (`Europe/Oslo`) selv om nettbrettet eller mobilen skulle ha en annen tidssone.

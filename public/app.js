@@ -1,4 +1,5 @@
 import {afterSchoolForDay} from './after-school.mjs';
+import {norwayCalendar, isExpiredSchoolDay, hasCalendarDateChanged, hourlyRefreshDue, REFRESH_INTERVAL_MS} from './calendar.mjs';
 (() => {
 'use strict';
 const DAYS=['Mandag','Tirsdag','Onsdag','Torsdag','Fredag'];
@@ -8,16 +9,8 @@ const $=id=>document.getElementById(id);
 const clean=s=>String(s??'');
 const esc=s=>clean(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const icon=(name,size=20)=>`<svg width="${size}" height="${size}" aria-hidden="true"><use href="#i-${['bag','check','refresh','book','calendar','trees','waves','activity','music','sparkles','bus','sun','scissors','gift'].includes(name)?name:'book'}"/></svg>`;
-function norwayNow(){
- const parts=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Oslo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()).filter(p=>p.type!=='literal').map(p=>[p.type,Number(p.value)]));
- const date=new Date(Date.UTC(parts.year,parts.month-1,parts.day));
- const dow=(date.getUTCDay()+6)%7;
- const th=new Date(date);th.setUTCDate(date.getUTCDate()-dow+3);
- const year=th.getUTCFullYear();const jan4=new Date(Date.UTC(year,0,4));
- const wk1=new Date(jan4);wk1.setUTCDate(jan4.getUTCDate()-(jan4.getUTCDay()+6)%7);
- return {date,day:Math.max(0,Math.min(4,dow)),dow,year,week:Math.round((date.getTime()-dow*86400000-wk1.getTime())/604800000)+1};
-}
-const now=norwayNow();
+const now=norwayCalendar();
+const openedAtMs=Date.now();
 const query=new URLSearchParams(location.search);
 const state={grade:query.get('klasse')==='7'?'7':'3',day:now.day,week:now.week,year:now.year,grades:{},statuses:{},busy:false,weather:null,weatherStatus:'loading',weatherUpdated:0};
 const mondayOfWeek=(year,week)=>{const jan4=new Date(Date.UTC(year,0,4));const mon=new Date(jan4);mon.setUTCDate(jan4.getUTCDate()-(jan4.getUTCDay()+6)%7+(week-1)*7);return mon;};
@@ -101,15 +94,23 @@ function render(){
  $('hero-week-range').textContent=`${fmtDay(mon)}–${fmtDay(fri)}`;
  $('week-dates').textContent=`${mon.toLocaleDateString('nb-NO',{timeZone:'UTC',weekday:'long'})} ${fmtDay(mon)} – ${fri.toLocaleDateString('nb-NO',{timeZone:'UTC',weekday:'long'})} ${fmtDay(fri)}`;
  $('fetched').textContent=`Fagerholt skole · ${now.year}`;
+ $('weekend-note').hidden=now.dow<5;
  $('refresh').disabled=state.busy;
  const dayName=DAYS[state.day];const d=g?.days?.[dayName]||{events:[],bring:[]};
- $('daygrid').innerHTML=DAYS.map((name,i)=>{const d=g?.days?.[name]||{};const date=new Date(mon);date.setUTCDate(mon.getUTCDate()+i);return `<button type="button" class="daycard${state.day===i?' active':''}" data-day="${i}" aria-pressed="${state.day===i}"><span class="dname">${name}<span class="date">${fmtDay(date)}</span></span><span class="di">${DAY_EMOJI[i]}</span><span class="ds">${esc(d.subtitle|| (status==='loading'?'Laster ukeplan…':'Se originalplan'))}</span><span class="endtime">${d.end?'Slutt '+esc(d.end):''}</span>${(()=>{const wd=state.weather?.days?.[date.toISOString().slice(0,10)];return wd&&wd.temperature!==null?`<span class="day-weather">${esc(wd.icon)} ${Math.round(wd.temperature)}°</span>`:''})()}${(()=>{const a=afterSchoolForDay({grade:state.grade,year:now.year,week:now.week,dayIndex:i});return a?`<span class="day-after-school">${esc(a.emoji)} ${esc(a.type==='dance'?'Hip-hop':'Tennis')}</span>`:''})()}</button>`}).join('');
- $('daygrid').querySelectorAll('button').forEach(btn=>btn.onclick=()=>{state.day=Number(btn.dataset.day);render()});
+ $('daygrid').innerHTML=DAYS.map((name,i)=>{
+  const d=g?.days?.[name]||{};const date=new Date(mon);date.setUTCDate(mon.getUTCDate()+i);
+  const expired=isExpiredSchoolDay(i,now.dow);const active=state.day===i&&!expired;
+  return `<button type="button" class="daycard${active?' active':''}${expired?' expired':''}" data-day="${i}" aria-pressed="${active}" aria-label="${name} ${fmtDay(date)}${expired?' – utgått':''}" ${expired?'disabled title="Dagen er utgått"':''}><span class="dname">${name}<span class="date">${fmtDay(date)}</span></span>${expired?'<span class="expired-badge">✓ Utgått</span>':''}<span class="di">${DAY_EMOJI[i]}</span><span class="ds">${esc(d.subtitle|| (status==='loading'?'Laster ukeplan…':'Se originalplan'))}</span><span class="endtime">${d.end?'Slutt '+esc(d.end):''}</span>${(()=>{const wd=state.weather?.days?.[date.toISOString().slice(0,10)];return wd&&wd.temperature!==null?`<span class="day-weather">${esc(wd.icon)} ${Math.round(wd.temperature)}°</span>`:''})()}${(()=>{const a=afterSchoolForDay({grade:state.grade,year:now.year,week:now.week,dayIndex:i});return a?`<span class="day-after-school">${esc(a.emoji)} ${esc(a.type==='dance'?'Hip-hop':'Tennis')}</span>`:''})()}</button>`;
+ }).join('');
+ $('daygrid').querySelectorAll('button:not(:disabled)').forEach(btn=>btn.onclick=()=>{
+  const index=Number(btn.dataset.day);if(isExpiredSchoolDay(index,norwayCalendar().dow))return;
+  state.day=index;render();
+ });
  const selected=new Date(mon);selected.setUTCDate(mon.getUTCDate()+state.day);
  renderWeather(selected,dayName);
  renderAfterSchool();
- $('selected-date').textContent=`${dayName.toUpperCase()} ${fmtFull(selected).toUpperCase()} · ${state.grade}. KLASSE${state.grade==='3'?' · RØD GRUPPE':''}`;
- $('selected-day').textContent=`Dette skjer på ${dayName.toLowerCase()}`;
+ $('selected-date').textContent=`${now.dow>=5?'UTGÅTT · ':''}${dayName.toUpperCase()} ${fmtFull(selected).toUpperCase()} · ${state.grade}. KLASSE${state.grade==='3'?' · RØD GRUPPE':''}`;
+ $('selected-day').textContent=now.dow>=5?'Siste skoledag denne uken':`Dette skjer på ${dayName.toLowerCase()}`;
  $('schoolhours').textContent=d.start&&d.end?`Skole ${d.start} – ${d.end}`:d.end?`Slutt ${d.end} · se originalen for starttid`:'Sjekk originalplanen for full timeplan';
  $('notice-banner').hidden=!d.alert||!g;$('alert-text').textContent=d.alert||'';
  const events=d.events||[];
@@ -176,9 +177,18 @@ $('refresh').addEventListener('click',()=>{loadGrade(state.grade,true);loadWeath
 render();
 loadGrade(state.grade);
 loadWeather();
-// On long-open pages, automatically load the next ISO week after midnight in Oslo.
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){
- const n=norwayNow();if(n.week!==now.week||n.year!==now.year)location.reload();
- else if(Date.now()-state.weatherUpdated>30*60000)loadWeather();
-}});
+// Refresh the whole page after one hour. Also react promptly at midnight in Norway.
+// Browsers may throttle timers in background tabs: visibility/focus catches up on return.
+let reloading=false;
+function reloadWhenDue(){
+ if(reloading)return;
+ const current=norwayCalendar();
+ if(hasCalendarDateChanged(now,current)||hourlyRefreshDue(openedAtMs,Date.now())){
+  reloading=true;location.reload();
+ }
+}
+setInterval(reloadWhenDue,REFRESH_INTERVAL_MS);
+setInterval(reloadWhenDue,60*1000); // Detect the next day, even before the hourly refresh.
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')reloadWhenDue()});
+window.addEventListener('focus',reloadWhenDue);
 })();
