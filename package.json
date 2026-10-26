@@ -1,0 +1,10 @@
+{
+  "name": "skolesekken-fagerholt",
+  "version": "2.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Automatisk ukeplan fra Fagerholt skole for 3. og 7. trinn.",
+  "engines": {"node": ">=20"},
+  "scripts": {"test": "node --test tests/*.test.mjs"},
+  "dependencies": {"pdfjs-dist": "4.10.38"}
+}
