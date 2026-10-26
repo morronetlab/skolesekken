@@ -24,7 +24,7 @@ const fmtDay=d=>d.toLocaleDateString('nb-NO',{timeZone:'UTC',day:'numeric',month
 const fmtFull=d=>d.toLocaleDateString('nb-NO',{timeZone:'UTC',day:'numeric',month:'long'});
 const isSmall=()=>matchMedia('(max-width:750px)').matches;
 const dataCurrent=g=>g&&g.week===now.week&&g.year===now.year&&g.status!=='unpublished'&&g.status!=='error'&&(g.grade==='7'||g.group?.key==='rød');
-const cacheKey=(grade)=>`skolesekken.cache.v5.${now.year}.${now.week}.${grade}`;
+const cacheKey=(grade)=>`skolesekken.cache.v6.${now.year}.${now.week}.${grade}`;
 function cacheGet(grade){try{const d=JSON.parse(localStorage.getItem(cacheKey(grade))||'null');return dataCurrent(d)?d:null}catch{return null}}
 function cacheSet(grade,plan){try{localStorage.setItem(cacheKey(grade),JSON.stringify(plan))}catch{}}
 function message(text,kind='info'){
@@ -39,10 +39,12 @@ function setStatus(status){
 function render(){
  const g=state.grades[state.grade];const status=state.statuses[state.grade]||'loading';
  $('week-badge').textContent=`UKE ${now.week}`;
+ $('hero-week-number').textContent=String(now.week);
  $('group-message').hidden=state.grade!=='3';
  setStatus(status);
  document.querySelectorAll('.gradebtn').forEach(b=>{const active=b.dataset.grade===state.grade;b.classList.toggle('active',active);b.setAttribute('aria-selected',String(active))});
  const mon=mondayOfWeek(now.year,now.week);const fri=new Date(mon);fri.setUTCDate(mon.getUTCDate()+4);
+ $('hero-week-range').textContent=`${fmtDay(mon)}–${fmtDay(fri)}`;
  $('week-dates').textContent=`${mon.toLocaleDateString('nb-NO',{timeZone:'UTC',weekday:'long'})} ${fmtDay(mon)} – ${fri.toLocaleDateString('nb-NO',{timeZone:'UTC',weekday:'long'})} ${fmtDay(fri)}`;
  $('fetched').textContent=`Fagerholt skole · ${now.year}`;
  $('refresh').disabled=state.busy;
@@ -56,9 +58,9 @@ function render(){
  $('notice-banner').hidden=!d.alert||!g;$('alert-text').textContent=d.alert||'';
  const events=d.events||[];
  $('events').innerHTML=events.length?events.map(e=>`<article class="event"><div class="event-icon tone-${esc(e.tone||'aqua')}">${icon(e.icon||'book')}</div><div class="event-body"><div class="event-time">${esc(e.time||'Fra ukeplanen')}</div><h4 class="event-title">${esc(e.title||'Aktivitet')}</h4>${e.detail?`<p class="event-desc">${esc(e.detail)}</p>`:''}</div></article>`).join(''):`<p class="empty">${status==='loading'?'Henter ukeplanen fra skolen…':g?'Ingen konkrete aktiviteter er oppgitt for denne dagen. Se originalplanen for full oversikt.':'Ingen bekreftet ukeplan tilgjengelig. Bruk lenken til skolens trinnside nedenfor.'}</p>`;
- const items=[...(g?.everyday||[]),...(d.bring||[])];
+ const items=[...(g?.everyday||[]),...(d.bring||[])].filter(item=>!['Penal','Skiftetøy'].includes(item.label));
  const unique=[...new Map(items.map(item=>[item.label,item])).values()];
- const packKey=`skolesekken.pack.v5.${now.year}.${now.week}.${state.grade}.${dayName}`;
+ const packKey=`skolesekken.pack.v6.${now.year}.${now.week}.${state.grade}.${dayName}`;
  let packed={};try{packed=JSON.parse(localStorage.getItem(packKey)||'{}')}catch{}
  $('pack-items').innerHTML=unique.length?unique.map((v,i)=>`<label class="checkrow ${packed[v.label]?'done':''}"><input type="checkbox" data-label="${esc(v.label)}" ${packed[v.label]?'checked':''} aria-label="${esc(v.label)}"><span class="checktext">${esc(v.label)}<small>${esc(v.note||'')}</small></span></label>`).join(''):`<p class="empty">${g?'Ingen spesielle ting registrert for denne dagen. Husk de vanlige skolesakene.':'Pakkelisten vises når en ukeplan er hentet.'}</p>`;
  const progress=()=>{const checks=[...document.querySelectorAll('#pack-items input')];const yes=checks.filter(c=>c.checked).length;$('progress-label').textContent=`${yes} av ${checks.length} pakket`;$('progress-fill').style.width=checks.length?`${yes/checks.length*100}%`:'0%';$('ready').hidden=!checks.length||yes!==checks.length;};

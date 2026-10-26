@@ -65,3 +65,12 @@ Prosjektet bruker skoleplaner som er offentlig tilgjengelige på nettsidene til 
 I skolens offentlig publiserte PDF er rød gruppe satt opp med **svømming mandag 12:00–13:30**, og **svømming tirsdag 08:30–10:00** med buss **08:05**. Mandagens tidlige buss gjelder andre grupper og skal ikke vises som oppmøtetid for rød. DKS mandag og Halloween fredag gjelder hele klassen og beholdes.
 
 Disse tallene finnes i `public/seed.json` som oppstartseksempel **kun i uke 44 / 2026**; kommende uker leses fra PDF ved hvert API-kall. Ved ulikt eller ukjent layout markeres usikkerheten, og original ukeplan bør leses. Det er ikke lagt inn varig antagelse om svømmetid for fremtidige uker.
+
+## Forbedringer i versjon 2.2
+
+- 3. trinns «Engelsklekse til neste engelsktime» skal skilles fra norsk. Også lekseoverskrifter med parenteser støttes.
+- Svømmedager for **rød gruppe** gir alltid **badetøy og håndkle** i pakkelisten. Hårstrikk tas med dersom skolen nevner det.
+- Penal og skiftetøy vises ikke lenger som avkryssingsoppgaver. Postmappe kan fortsatt vises hvis skolen krever den.
+- PDF-elementer fra «Les mer her», svømmetabellen og SVG-/lenkeetiketter fjernes fra daglige aktiviteter. Hvis noe ikke kan leses, se originalplanen.
+- Kompakt toppfelt og ekstra tydelig ukenummer.
+- Cacheversjon oppdatert for at gamle feiltolkede data ikke skal bli hengende etter oppgraderingen.

@@ -135,3 +135,57 @@ test('unknown red group swimming time must be flagged, never mistaken as 08:05',
  assert.match(p.days.Mandag.alert,/sjekk svømmetid/i);
  assert.ok(!JSON.stringify(p.days.Mandag.events).includes('08:05'));
 });
+
+test('3rd grade: real heading Engelsklekse belongs to Engelsk, not Norsk',async()=>{
+ const {extractHomework}=await import('../lib/plan-core.mjs');
+ const items=[];
+ add(items,'Lekser uke 44',30,20,180);
+ add(items,'Norsk(ukelekse): Les teksten høyt for en voksen og svar skriftlig.',30,65,450);
+ add(items,'Engelsklekse til neste engelsktime: Øve på høyfrekvente ord.',30,108,480);
+ add(items,'Les og oversett s. 34 eller s. 35 sammen med en voksen.',30,135,480);
+ add(items,'Tlf til arbeidsrom 3. trinn: 47716783',30,172,340);
+ const h=extractHomework([{width:600,height:280,items}]);
+ assert.equal(h.length,2);
+ assert.equal(h[0].subject,'Norsk');
+ assert.equal(h[1].subject,'Engelsk');
+ assert.doesNotMatch(h[0].detail,/høyfrekvente|oversett/i);
+ assert.match(h[1].detail,/oversett/i);
+});
+
+test('red-group swim requires badetøy and håndkle even with no extracted gear note',async()=>{
+ const {tailorThirdGradeRed}=await import('../lib/plan-core.mjs');
+ const p=tailorThirdGradeRed({grade:'3',week:44,status:'ok',days:Object.fromEntries(names.map(n=>[n,{events:n==='Mandag'||n==='Tirsdag'?[{title:'Svømming for alle'}]:[],bring:[]}])) ,notices:[]},[]);
+ for(const name of ['Mandag','Tirsdag']){
+   const labels=p.days[name].bring.map(x=>x.label);
+   assert.ok(labels.includes('Badetøy'),name);
+   assert.ok(labels.includes('Håndkle'),name);
+ }
+ assert.equal(p.days.Onsdag.bring.length,0);
+});
+
+test('strip PDF link, icon and swimming-table bleed without removing real day info',()=>{
+ const items=[];headers(items);
+ add(items,'08.30 - 14.00',35,120);
+ add(items,'Svømming for alle',35,150);
+ add(items,'Les mer her (08.10) 08.30 - 10.00',235,170);
+ add(items,'oransje, blå, grønn gul, rød, rosa',235,190);
+ add(items,'svg',235,209);
+ add(items,'Dette skjer fremover:',260,240);
+ add(items,'Plan for svømming',260,273);
+ add(items,'Planleggingsdager - skole og SFO stengt',235,290);
+ const g=analyzePdfPages([{width:550,height:560,items}], '3', 'https://www.minskole.no/a.pdf',44,2026);
+ assert.equal(g.days.Mandag.events.filter(x=>/svømm/i.test(x.title)).length,1);
+ const wed=JSON.stringify(g.days.Onsdag);
+ assert.doesNotMatch(wed,/les mer her|svg|oransje|svømmetabell|planleggingsdager/i);
+});
+
+test('penal and skiftetøy never enter the daily or everyday checklists',()=>{
+ const items=[];headers(items);
+ add(items,'Penal, skiftetøy og gymtøy',335,150);
+ add(items,'Dette skjer fremover:',35,250);
+ add(items,'Huskeliste:',30,310);
+ add(items,'Sekken: postmappe og penal. Husk skiftetøy.',30,338);
+ const p=analyzePdfPages([{width:550,height:550,items}], '7','https://www.minskole.no/a.pdf',44,2026);
+ assert.ok(p.days.Torsdag.bring.some(x=>x.label==='Gymtøy'));
+ assert.ok(![...p.days.Torsdag.bring,...p.everyday].some(x=>/penal|skiftetøy/i.test(x.label)));
+});
