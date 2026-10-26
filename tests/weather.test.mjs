@@ -32,7 +32,7 @@ test('summarizes temperature, precip and wind for correct selected dates',()=>{
  assert.equal(days['2026-10-26'].minTemp,5);
  assert.equal(days['2026-10-26'].maxTemp,9);
  assert.equal(days['2026-10-26'].windMs,4);
- assert.equal(days['2026-10-26'].rainMm,0.8);
+ assert.equal(days['2026-10-26'].rainMm,0.5);
  assert.equal(days['2026-10-26'].icon,'🌧️');
  assert.equal(days['2026-10-27'].temperature,12);
  assert.equal(days['2026-10-27'].icon,'☀️');
@@ -71,4 +71,20 @@ test('weather endpoint fetches MET API and sends day JSON with source credit',as
   assert.equal(result.source,'Yr / Meteorologisk institutt');
   assert.equal(result.stale,false);
  }finally{globalThis.fetch=before}
+});
+
+test('selected school days stay independent across midnight and after-school rain is omitted',()=>{
+  const days=summarizeForecast(forecast([
+    entry('2026-10-26T11:00:00Z',10,2,'clearsky_day',0), // Monday 12:00
+    entry('2026-10-26T16:00:00Z',9,2,'rain',5),          // Monday 17:00 – should NOT count
+    entry('2026-10-27T11:00:00Z',11,4,'rain',2),        // Tuesday 12:00
+  ]));
+  assert.equal(days['2026-10-26'].description,'Sol');
+  assert.equal(days['2026-10-26'].rainMm,0);
+  assert.equal(days['2026-10-27'].description,'Regn');
+  assert.equal(days['2026-10-27'].rainMm,2);
+});
+test('rain showers are described as showers, not steady all-day rain',()=>{
+ const days=summarizeForecast(forecast([entry('2026-10-26T11:00:00Z',10,4,'lightrainshowers_day',0.2)]));
+ assert.equal(days['2026-10-26'].description,'Regnbyger');
 });

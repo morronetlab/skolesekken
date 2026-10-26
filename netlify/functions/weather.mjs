@@ -2,7 +2,7 @@ import {summarizeForecast,FORECAST_LOCATION,PENT_LINK} from '../../lib/weather-c
 
 const FORECAST_URL = `https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${FORECAST_LOCATION.lat}&lon=${FORECAST_LOCATION.lon}`;
 // MET requires a descriptive User-Agent and responsible caching; no scraping of Pent.no.
-const USER_AGENT = 'Skolesekken/2.3 (https://github.com/morronetlab/skolesekken)';
+const USER_AGENT = 'Skolesekken/2.3.1 (https://github.com/morronetlab/skolesekken)';
 let saved = null;
 let expiresAt = 0;
 let lastModified = null;

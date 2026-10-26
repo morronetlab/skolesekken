@@ -93,3 +93,28 @@ Værpanelet vises i det kompakte toppfeltet og følger automatisk dagen som velg
 4. Ved feil i vær-API skal appen fortsatt fungere med ukeplan og pakkeliste.
 
 Den medfølgende HTML-forhåndsvisningen er kun en **designdemo med illustrasjonsvær**, ikke en sanntidsværmelding. Publiser **hele GitHub-prosjektet med Netlify Functions** for reell værhenting og løpende ukeplaner.
+
+
+## Vær – presisering fra v2.3.1
+
+- Værvarselet i **Netlify-utgaven** hentes fra MET Locationforecast via `/api/weather`, for Pent-koordinatene 58.1467, 7.9956. Appen bruker `Europe/Oslo` for å knytte riktig prognose til hver dag.
+- Været er nå oppsummert for **kl. 08:00–15:00** (skole- og morgenperioden), ikke et helt døgn. Regn på kvelden tas ikke med.
+- Den nedlastbare **HTML-forhåndsvisningen** inneholder nå **ingen oppdiktede værdata**. Den viser en merknad om at live-været kun fungerer i publisert Netlify-versjon.
+- Som alltid kan varsel endre seg; Pent.no kan avvike fra Yr fordi de også viser Storm.
+
+
+## Aktiviteter etter skolen – versjon 2.4
+
+Vises kun for **7. klasse** og følger ukedagen som velges, uavhengig av om skolens PDF er tilgjengelig.
+- **Tirsdag + torsdag:** Hip-hop dans. Fremhevet oppmøte for kjøring, basert på familiens egen kjøreplan.
+- **Onsdag:** Tennis. Maya kjører i partallsuker, Julie kjører i oddetallsuker.
+- **Mandag + fredag:** Ingen faste fritidsaktiviteter registrert; panelet skjules.
+- Tydelige merker på dagskortene, egen stor aktivitetsseksjon ved valgt dag.
+
+Kjøreplan for dans gjelder **2026**: Nora (37, 42, 46), Smilla (39, 44, 48), Julie (38, 43, 47), Maya (41, 45, 49). Ved **uke 40 og 50–53**, eller i senere år, vil appen vise «Kjøreplan ikke oppgitt» – den gjetter ikke hvem som skal kjøre. Aktivitetsdagene vises likevel. Ingen klokkeslett er oppgitt, derfor gjettes heller ikke disse.
+
+Fritidsaktivitetene er **familiens egne opplysninger** og ikke hentet fra skolens PDF; de påvirker ikke pakkelisten for skolen. Endre mappingen i `public/after-school.mjs` ved fremtidige avtaler.
+
+### Rettelse i versjon 2.4.1
+
+Julie og Smilla har byttet danseuker. **Julie: uke 38, 43, 47. Smilla: uke 39, 44, 48.** Nora og Maya, samt tennisplanen, er uendret. I uke 44 går jentene hjem til **Smilla** for kjøring på tirsdag og torsdag.

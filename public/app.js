@@ -1,3 +1,4 @@
+import {afterSchoolForDay} from './after-school.mjs';
 (() => {
 'use strict';
 const DAYS=['Mandag','Tirsdag','Onsdag','Torsdag','Fredag'];
@@ -42,12 +43,12 @@ function renderWeather(selected,dayName){
  const key=selected.toISOString().slice(0,10);
  const record=state.weather?.days?.[key]||null;
  $('weather-day').textContent=`${dayName} ${fmtDay(selected)}`;
- $('weather-icon').textContent=record?.icon || (state.weatherStatus==='loading'?'🌤️':'🌥️');
+ $('weather-icon').textContent=record?.icon || (state.weatherStatus==='loading'?'⌛':'🌥️');
  $('weather-temp').textContent=typeof record?.temperature==='number'?`${Math.round(record.temperature)}°`:'—';
- $('weather-description').textContent=record?.description || (state.weatherStatus==='loading'?'Henter værmelding…':state.weatherStatus==='error'?'Været er utilgjengelig':'Ingen værdata for dagen');
+ $('weather-description').textContent=record?.description || (state.weatherStatus==='demo'?'Eksempelvisning – ikke live vær':state.weatherStatus==='loading'?'Henter værmelding…':state.weatherStatus==='error'?'Været er utilgjengelig':'Ingen værdata for dagen');
  const tempRange=typeof record?.minTemp==='number'&&typeof record?.maxTemp==='number'
-   ? `${Math.round(record.minTemp)}° til ${Math.round(record.maxTemp)}° · kl. 08–17`
-   : 'Vær i skoletiden · kl. 08–17';
+   ? `${Math.round(record.minTemp)}° til ${Math.round(record.maxTemp)}° · kl. 08–15`
+   : 'Vær i skoletiden · kl. 08–15';
  $('weather-range').textContent=tempRange;
  $('weather-rain').textContent=typeof record?.rainMm==='number'
    ? `💧 ${record.rainApproximate?'Ca. ':''}${String(record.rainMm).replace('.',',')} mm nedbør`
@@ -55,7 +56,7 @@ function renderWeather(selected,dayName){
  $('weather-wind').textContent=typeof record?.windMs==='number'
    ? `🍃 ${String(record.windMs).replace('.',',')} m/s vind`
    : '🍃 Vind: —';
- $('weather-credit').textContent=state.weatherStatus==='stale'?'· eldre varsel':'· Yr-prognose';
+ $('weather-credit').textContent=state.weatherStatus==='demo'?'· Ingen live-data i forhåndsvisning':state.weatherStatus==='stale'?'· eldre varsel':'· Yr-prognose';
 }
 async function loadWeather(force=false){
  state.weatherStatus=state.weather?'stale':'loading';render();
@@ -65,7 +66,7 @@ async function loadWeather(force=false){
   const weather=await response.json();
   if(!response.ok || !weather.days || typeof weather.days!=='object')throw new Error(weather.warning||`HTTP ${response.status}`);
   state.weather=weather;
-  state.weatherStatus=weather.stale?'stale':'ok';
+  state.weatherStatus=weather.demo?'demo':weather.stale?'stale':'ok';
   state.weatherUpdated=Date.now();
   try{localStorage.setItem(weatherCacheKey,JSON.stringify({savedAt:Date.now(),data:weather}))}catch{}
  } catch(error){
@@ -74,6 +75,20 @@ async function loadWeather(force=false){
   if(cached?.data?.days && Date.now()-cached.savedAt < 4*3600000){state.weather=cached.data;state.weatherStatus='stale'}
   else {state.weather=null;state.weatherStatus='error'}
  } finally{render()}
+}
+function renderAfterSchool(){
+ const activity=afterSchoolForDay({grade:state.grade,year:now.year,week:now.week,dayIndex:state.day});
+ const panel=$('after-school');panel.hidden=!activity;
+ if(!activity)return;
+ panel.classList.toggle('tennis',activity.type==='tennis');
+ $('after-school-week').textContent=`UKE ${activity.week}`;
+ $('after-school-icon').textContent=activity.emoji;
+ $('after-school-title').textContent=activity.title;
+ $('after-school-subtitle').textContent=`${activity.weekday} · Etter skolen · Klokkeslett ikke oppgitt`;
+ $('after-school-ride-overline').textContent=activity.type==='dance'?'Oppmøte for kjøring':'Hvem kjører?';
+ $('after-school-driver').textContent=activity.driverLabel;
+ $('after-school-detail').textContent=activity.detail;
+ $('after-school-ride').classList.toggle('unassigned',activity.unknownDriver);
 }
 function render(){
  const g=state.grades[state.grade];const status=state.statuses[state.grade]||'loading';
@@ -88,10 +103,11 @@ function render(){
  $('fetched').textContent=`Fagerholt skole · ${now.year}`;
  $('refresh').disabled=state.busy;
  const dayName=DAYS[state.day];const d=g?.days?.[dayName]||{events:[],bring:[]};
- $('daygrid').innerHTML=DAYS.map((name,i)=>{const d=g?.days?.[name]||{};const date=new Date(mon);date.setUTCDate(mon.getUTCDate()+i);return `<button type="button" class="daycard${state.day===i?' active':''}" data-day="${i}" aria-pressed="${state.day===i}"><span class="dname">${name}<span class="date">${fmtDay(date)}</span></span><span class="di">${DAY_EMOJI[i]}</span><span class="ds">${esc(d.subtitle|| (status==='loading'?'Laster ukeplan…':'Se originalplan'))}</span><span class="endtime">${d.end?'Slutt '+esc(d.end):''}</span>${(()=>{const wd=state.weather?.days?.[date.toISOString().slice(0,10)];return wd&&wd.temperature!==null?`<span class="day-weather">${esc(wd.icon)} ${Math.round(wd.temperature)}°</span>`:''})()}</button>`}).join('');
+ $('daygrid').innerHTML=DAYS.map((name,i)=>{const d=g?.days?.[name]||{};const date=new Date(mon);date.setUTCDate(mon.getUTCDate()+i);return `<button type="button" class="daycard${state.day===i?' active':''}" data-day="${i}" aria-pressed="${state.day===i}"><span class="dname">${name}<span class="date">${fmtDay(date)}</span></span><span class="di">${DAY_EMOJI[i]}</span><span class="ds">${esc(d.subtitle|| (status==='loading'?'Laster ukeplan…':'Se originalplan'))}</span><span class="endtime">${d.end?'Slutt '+esc(d.end):''}</span>${(()=>{const wd=state.weather?.days?.[date.toISOString().slice(0,10)];return wd&&wd.temperature!==null?`<span class="day-weather">${esc(wd.icon)} ${Math.round(wd.temperature)}°</span>`:''})()}${(()=>{const a=afterSchoolForDay({grade:state.grade,year:now.year,week:now.week,dayIndex:i});return a?`<span class="day-after-school">${esc(a.emoji)} ${esc(a.type==='dance'?'Hip-hop':'Tennis')}</span>`:''})()}</button>`}).join('');
  $('daygrid').querySelectorAll('button').forEach(btn=>btn.onclick=()=>{state.day=Number(btn.dataset.day);render()});
  const selected=new Date(mon);selected.setUTCDate(mon.getUTCDate()+state.day);
  renderWeather(selected,dayName);
+ renderAfterSchool();
  $('selected-date').textContent=`${dayName.toUpperCase()} ${fmtFull(selected).toUpperCase()} · ${state.grade}. KLASSE${state.grade==='3'?' · RØD GRUPPE':''}`;
  $('selected-day').textContent=`Dette skjer på ${dayName.toLowerCase()}`;
  $('schoolhours').textContent=d.start&&d.end?`Skole ${d.start} – ${d.end}`:d.end?`Slutt ${d.end} · se originalen for starttid`:'Sjekk originalplanen for full timeplan';
