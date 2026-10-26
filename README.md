@@ -74,3 +74,22 @@ Disse tallene finnes i `public/seed.json` som oppstartseksempel **kun i uke 44 /
 - PDF-elementer fra «Les mer her», svømmetabellen og SVG-/lenkeetiketter fjernes fra daglige aktiviteter. Hvis noe ikke kan leses, se originalplanen.
 - Kompakt toppfelt og ekstra tydelig ukenummer.
 - Cacheversjon oppdatert for at gamle feiltolkede data ikke skal bli hengende etter oppgraderingen.
+
+## Værvisning – versjon 2.3
+
+Værpanelet vises i det kompakte toppfeltet og følger automatisk dagen som velges (mandag–fredag), uavhengig av om du ser 3. eller 7. trinn. Hvert dagskort viser også en liten værindikasjon.
+
+- **Sted:** Samme koordinater som Pent-lenken: `58.14671, 7.9956` (avrundet til 4 desimaler for METs API-krav).
+- **Værkilde:** [Meteorologisk institutt / Yr Locationforecast](https://developer.yr.no/doc/locationforecast/HowTO/). Pent.no viser både Yr og Storm, men har ikke et bekreftet offentlig API for tilsvarende tilgang og beskytter nettstedet mot automatisk uthenting. Appen skraper derfor **ikke** Pent, og viser **ikke Storm-prognosen**. Lenken til Pent er tilgjengelig fra værpanelet.
+- **Tidsrom:** Ca. 08–17 i lokal tid (`Europe/Oslo`). Temperaturen ved ca. kl. 12, anslått nedbør i skoletiden og høyeste vindstyrke i skoletiden vises. Nedbør fra seks-timers prognoseblokker merkes «ca.».
+- **Oppdatering:** Nettlify-funksjonen `/api/weather` leser fra MET API, overholder «Expires» og mellomlagrer; appen henter ved åpning, ved manuell «Oppdater» og når vinduet igjen blir aktivt etter over 30 minutter. Ved feil vises tydelig varsel eller eldre prognose (maks fire timer lokalt).
+- **Kreditering:** Værdata fra Meteorologisk institutt, bearbeidet for skoletid, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+
+### Verifisere etter publisering
+
+1. Åpne `https://DIN-NETLIFY-ADRESSE/api/weather`. Den skal returnere JSON med `days` (datonøkler på formen `2026-10-26`).
+2. Åpne hovedsiden. Velg mandag og deretter tirsdag: vær og dato i hero-elementet skal skifte.
+3. Velg 3. og 7. trinn; været skal være det samme for den samme dagen.
+4. Ved feil i vær-API skal appen fortsatt fungere med ukeplan og pakkeliste.
+
+Den medfølgende HTML-forhåndsvisningen er kun en **designdemo med illustrasjonsvær**, ikke en sanntidsværmelding. Publiser **hele GitHub-prosjektet med Netlify Functions** for reell værhenting og løpende ukeplaner.

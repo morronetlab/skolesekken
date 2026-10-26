@@ -18,7 +18,7 @@ function norwayNow(){
 }
 const now=norwayNow();
 const query=new URLSearchParams(location.search);
-const state={grade:query.get('klasse')==='7'?'7':'3',day:now.day,week:now.week,year:now.year,grades:{},statuses:{},busy:false};
+const state={grade:query.get('klasse')==='7'?'7':'3',day:now.day,week:now.week,year:now.year,grades:{},statuses:{},busy:false,weather:null,weatherStatus:'loading',weatherUpdated:0};
 const mondayOfWeek=(year,week)=>{const jan4=new Date(Date.UTC(year,0,4));const mon=new Date(jan4);mon.setUTCDate(jan4.getUTCDate()-(jan4.getUTCDay()+6)%7+(week-1)*7);return mon;};
 const fmtDay=d=>d.toLocaleDateString('nb-NO',{timeZone:'UTC',day:'numeric',month:'2-digit'});
 const fmtFull=d=>d.toLocaleDateString('nb-NO',{timeZone:'UTC',day:'numeric',month:'long'});
@@ -36,6 +36,45 @@ function setStatus(status){
  $('status-pill').textContent=good?'Oppdatert ukeplan':partial?'Delvis lest ukeplan':status==='loading'?'Henter planen…':status==='cached'?'Lagret ukeplan':status==='unpublished'?'Ikke publisert ennå':'Kan ikke hente ukeplan';
  $('status-dot').style.background=good?'#58ab83':status==='loading'?'#9db4b0':'#dfa466';
 }
+
+const weatherCacheKey='skolesekken.weather.v1';
+function renderWeather(selected,dayName){
+ const key=selected.toISOString().slice(0,10);
+ const record=state.weather?.days?.[key]||null;
+ $('weather-day').textContent=`${dayName} ${fmtDay(selected)}`;
+ $('weather-icon').textContent=record?.icon || (state.weatherStatus==='loading'?'🌤️':'🌥️');
+ $('weather-temp').textContent=typeof record?.temperature==='number'?`${Math.round(record.temperature)}°`:'—';
+ $('weather-description').textContent=record?.description || (state.weatherStatus==='loading'?'Henter værmelding…':state.weatherStatus==='error'?'Været er utilgjengelig':'Ingen værdata for dagen');
+ const tempRange=typeof record?.minTemp==='number'&&typeof record?.maxTemp==='number'
+   ? `${Math.round(record.minTemp)}° til ${Math.round(record.maxTemp)}° · kl. 08–17`
+   : 'Vær i skoletiden · kl. 08–17';
+ $('weather-range').textContent=tempRange;
+ $('weather-rain').textContent=typeof record?.rainMm==='number'
+   ? `💧 ${record.rainApproximate?'Ca. ':''}${String(record.rainMm).replace('.',',')} mm nedbør`
+   : '💧 Nedbør: —';
+ $('weather-wind').textContent=typeof record?.windMs==='number'
+   ? `🍃 ${String(record.windMs).replace('.',',')} m/s vind`
+   : '🍃 Vind: —';
+ $('weather-credit').textContent=state.weatherStatus==='stale'?'· eldre varsel':'· Yr-prognose';
+}
+async function loadWeather(force=false){
+ state.weatherStatus=state.weather?'stale':'loading';render();
+ try {
+  const url='/api/weather'+(force?`?fresh=1&t=${Date.now()}`:'');
+  const response=await fetch(url,{cache:force?'no-store':'default'});
+  const weather=await response.json();
+  if(!response.ok || !weather.days || typeof weather.days!=='object')throw new Error(weather.warning||`HTTP ${response.status}`);
+  state.weather=weather;
+  state.weatherStatus=weather.stale?'stale':'ok';
+  state.weatherUpdated=Date.now();
+  try{localStorage.setItem(weatherCacheKey,JSON.stringify({savedAt:Date.now(),data:weather}))}catch{}
+ } catch(error){
+  let cached=null;
+  try{cached=JSON.parse(localStorage.getItem(weatherCacheKey)||'null')}catch{}
+  if(cached?.data?.days && Date.now()-cached.savedAt < 4*3600000){state.weather=cached.data;state.weatherStatus='stale'}
+  else {state.weather=null;state.weatherStatus='error'}
+ } finally{render()}
+}
 function render(){
  const g=state.grades[state.grade];const status=state.statuses[state.grade]||'loading';
  $('week-badge').textContent=`UKE ${now.week}`;
@@ -49,9 +88,10 @@ function render(){
  $('fetched').textContent=`Fagerholt skole · ${now.year}`;
  $('refresh').disabled=state.busy;
  const dayName=DAYS[state.day];const d=g?.days?.[dayName]||{events:[],bring:[]};
- $('daygrid').innerHTML=DAYS.map((name,i)=>{const d=g?.days?.[name]||{};const date=new Date(mon);date.setUTCDate(mon.getUTCDate()+i);return `<button type="button" class="daycard${state.day===i?' active':''}" data-day="${i}" aria-pressed="${state.day===i}"><span class="dname">${name}<span class="date">${fmtDay(date)}</span></span><span class="di">${DAY_EMOJI[i]}</span><span class="ds">${esc(d.subtitle|| (status==='loading'?'Laster ukeplan…':'Se originalplan'))}</span><span class="endtime">${d.end?'Slutt '+esc(d.end):''}</span></button>`}).join('');
- $('daygrid').querySelectorAll('button').forEach(btn=>btn.onclick=()=>{state.day=Number(btn.dataset.day);render();if(isSmall())document.querySelector('.maingrid').scrollIntoView({behavior:'smooth',block:'start'})});
+ $('daygrid').innerHTML=DAYS.map((name,i)=>{const d=g?.days?.[name]||{};const date=new Date(mon);date.setUTCDate(mon.getUTCDate()+i);return `<button type="button" class="daycard${state.day===i?' active':''}" data-day="${i}" aria-pressed="${state.day===i}"><span class="dname">${name}<span class="date">${fmtDay(date)}</span></span><span class="di">${DAY_EMOJI[i]}</span><span class="ds">${esc(d.subtitle|| (status==='loading'?'Laster ukeplan…':'Se originalplan'))}</span><span class="endtime">${d.end?'Slutt '+esc(d.end):''}</span>${(()=>{const wd=state.weather?.days?.[date.toISOString().slice(0,10)];return wd&&wd.temperature!==null?`<span class="day-weather">${esc(wd.icon)} ${Math.round(wd.temperature)}°</span>`:''})()}</button>`}).join('');
+ $('daygrid').querySelectorAll('button').forEach(btn=>btn.onclick=()=>{state.day=Number(btn.dataset.day);render()});
  const selected=new Date(mon);selected.setUTCDate(mon.getUTCDate()+state.day);
+ renderWeather(selected,dayName);
  $('selected-date').textContent=`${dayName.toUpperCase()} ${fmtFull(selected).toUpperCase()} · ${state.grade}. KLASSE${state.grade==='3'?' · RØD GRUPPE':''}`;
  $('selected-day').textContent=`Dette skjer på ${dayName.toLowerCase()}`;
  $('schoolhours').textContent=d.start&&d.end?`Skole ${d.start} – ${d.end}`:d.end?`Slutt ${d.end} · se originalen for starttid`:'Sjekk originalplanen for full timeplan';
@@ -112,15 +152,17 @@ if(now.year===seed.year&&now.week===seed.week){
 const hello=['God mandag!','God tirsdag!','God onsdag!','God torsdag!','God fredag!','God helg!','God søndag!'];
 $('hello').innerHTML=esc(hello[now.dow])+' <span aria-hidden="true">☀️</span>';
 document.querySelectorAll('.gradebtn').forEach(btn=>btn.addEventListener('click',()=>{
- state.grade=btn.dataset.grade;history.replaceState(null,'',`${location.pathname}?klasse=${state.grade}`);render();
+ state.grade=btn.dataset.grade;try{history.replaceState(null,'',`${location.pathname}?klasse=${state.grade}`)}catch{}render();
  if(!state.statuses[state.grade]||state.statuses[state.grade]==='cached')loadGrade(state.grade);
 }));
 $('refresh').title='Hent siste ukeplan fra skolen';$('refresh').innerHTML=icon('refresh',16)+' Oppdater';
-$('refresh').addEventListener('click',()=>loadGrade(state.grade,true));
+$('refresh').addEventListener('click',()=>{loadGrade(state.grade,true);loadWeather(true)});
 render();
 loadGrade(state.grade);
+loadWeather();
 // On long-open pages, automatically load the next ISO week after midnight in Oslo.
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){
  const n=norwayNow();if(n.week!==now.week||n.year!==now.year)location.reload();
+ else if(Date.now()-state.weatherUpdated>30*60000)loadWeather();
 }});
 })();

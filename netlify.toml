@@ -12,3 +12,9 @@
   to = "/.netlify/functions/plan"
   status = 200
   force = true
+
+[[redirects]]
+  from = "/api/weather"
+  to = "/.netlify/functions/weather"
+  status = 200
+  force = true
