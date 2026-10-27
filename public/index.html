@@ -7,6 +7,7 @@
   <meta name="description" content="Ukeplan, pakkeliste, vær og aktiviteter for 3. og 7. klasse ved Fagerholt skole.">
   <title>Skolesekken · Morgenklar</title>
   <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/theme-spotlight.css">
 </head>
 <body data-mode="both">
 <div class="shell">
@@ -52,6 +53,7 @@
         <span class="small muted" id="family-day"></span>
       </div>
       <div class="family-cards" id="family-cards"></div>
+      <div id="family-themes" class="family-themes" aria-label="Ukas tema og oppdrag"></div>
       <div class="family-bottom" id="family-bottom"></div>
     </section>
     <section id="detail-view" class="hidden">
@@ -61,8 +63,8 @@
         <div class="stack"><section class="card bag-card" id="bag-section"></section></div>
       </div>
       <div class="weekstrip">
+        <section class="secondary-card theme-card" id="theme-section"></section>
         <section class="secondary-card" id="homework-section"></section>
-        <section class="secondary-card" id="theme-section"></section>
       </div>
       <details class="more" id="notices-details"><summary><span>📬 Beskjeder fra skolen <span class="numb" id="notice-count"></span></span><span aria-hidden="true">⌄</span></summary><div class="more-content" id="notices"></div></details>
     </section>
