@@ -1,6 +1,6 @@
 {
   "name": "skolesekken-fagerholt",
-  "version": "2.4.3",
+  "version": "2.5.0",
   "private": true,
   "type": "module",
   "description": "Automatisk ukeplan fra Fagerholt skole for 3. og 7. trinn.",

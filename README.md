@@ -1,3 +1,9 @@
+# Skolesekken 2.5 – Ukas tema ✨
+
+Denne versjonen legger til et fargerikt, kompakt **Ukas superkraft**-kort. Temaet hentes fra feltet `weekTheme` i den **gjeldende ukens PDF** for trinnet (3. klasse / rød gruppe eller 7. klasse). Dersom PDF-en ikke inneholder et lesbart eksplisitt tema, vises ikke kortet. Appen gjetter aldri skoletema.
+
+Kortet tilbyr et **valgfritt minioppdrag laget av Skolesekken**, tydelig merket slik. Trykk «Se minioppdrag», og kryss av «Jeg gjorde det!» om ønskelig. Status lagres lokalt på enheten, separat per klasse, uke og tema. Det sendes ikke elevinformasjon til serveren.
+
 # Skolesekken – automatisk ukeplan for Fagerholt skole
 
 Dette er en mobilvennlig webapp for **3. klasse (rød gruppe) og 7. klasse** på Fagerholt skole.
@@ -22,9 +28,9 @@ Dette er en mobilvennlig webapp for **3. klasse (rød gruppe) og 7. klasse** på
 > Den tidligere løsningen din ble dratt rett inn i Netlify som statiske filer. Denne versjonen bruker en **Netlify Function** for å hente og lese PDF-ene. Du må bygge/publisere hele prosjektet, ikke bare `public`-mappen eller `index.html`.
 
 1. Pakk ut ZIP-filen.
-2. Opprett et nytt GitHub-repository på <https://github.com/new> (gjerne privat). Last opp **innholdet** i denne mappen til repoets rot. Behold filstrukturen, spesielt `netlify.toml`, `package.json`, `public/`, `lib/` og `netlify/functions/`.
+2. Bruk ditt eksisterende GitHub-repository <https://github.com/morronetlab/skolesekken> og oppdater **innholdet** i repoets rot med filene fra denne pakken. Behold filstrukturen, spesielt `netlify.toml`, `package.json`, `public/`, `lib/` og `netlify/functions/`.
 3. Åpne den **eksisterende** Netlify-siden din: <https://app.netlify.com/> → velg `lucent-marigold-876014`.
-4. Gå til **Project configuration → Developer settings → Continuous deployment → Repository → Link repository**. Velg det nye GitHub-repositoryet.
+4. Gå til **Project configuration → Developer settings → Continuous deployment → Repository → Link repository**. Velg `morronetlab/skolesekken` (dersom dette ikke allerede er koblet til).
 5. Kontroller innstillingene: Build command = `npm test`, Publish directory = `public`, Functions directory = `netlify/functions` (dette ligger allerede i `netlify.toml`).
 6. Start første deploy og se at den ender med **Published**.
 7. Åpne <https://lucent-marigold-876014.netlify.app/> og test begge klassene. I Netlify finner du funksjonslogger under **Logs → Functions**, eller fra prosjektets Functions-side.
@@ -44,9 +50,10 @@ Dette er en mobilvennlig webapp for **3. klasse (rød gruppe) og 7. klasse** på
 ```
 public/
   index.html        # Design og grensesnitt
-  app.js            # Kalender, klassevelger, API og huskelister
+  app.js            # Kalender, klassevelger, API, tema og huskelister
+  theme.mjs         # Tema-illustrasjon og frivillig minioppdrag
 lib/
-  plan-core.mjs     # PDF-layouttolkning og tekstparsing
+  plan-core.mjs     # PDF-layouttolkning, lekser og tema-uttrekk
 netlify/functions/
   plan.mjs          # Serverløs API: henter skolens PDF og leser innholdet
 netlify.toml        # Netlify-konfigurasjon /api/plan → funksjon
@@ -130,3 +137,10 @@ Julie og Smilla har byttet danseuker. **Julie: uke 38, 43, 47. Smilla: uke 39, 4
 ## Rettelse i versjon 2.4.3
 
 Hip-hop for 7. klasse er **mandag og torsdag**, ikke tirsdag og torsdag. Oppmøte for kjøring vises begge dagene. Tirsdag har ingen fast aktivitet; onsdag er fortsatt tennis. Kjøreukene og all annen funksjonalitet er uendret.
+
+## Forenklet grensesnitt – versjon 2.4.4
+
+- Fjernet den store informasjonsteksten om at 3. trinn er filtrert til rød gruppe. Gruppeindikator, rød-gruppefiltrering og fellesinformasjon er beholdt.
+- Fjernet to generelle bekreftelsestekster om gruppefilter og automatisk innhenting som kom opp når en ukeplan var hentet.
+- Viser fortsatt faktiske **feil og advarsler** dersom ukeplanen ikke finnes, leses ufullstendig eller bare ligger i lokal cache.
+- Øvrig timeplan-, vær-, aktivitet-, pakke- og oppdateringslogikk er uendret.

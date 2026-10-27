@@ -1,3 +1,4 @@
+import {themePresentation, themeProgressKey} from './theme.mjs';
 import {afterSchoolForDay} from './after-school.mjs';
 import {norwayCalendar, isExpiredSchoolDay, hasCalendarDateChanged, hourlyRefreshDue, REFRESH_INTERVAL_MS} from './calendar.mjs';
 (() => {
@@ -12,7 +13,7 @@ const icon=(name,size=20)=>`<svg width="${size}" height="${size}" aria-hidden="t
 const now=norwayCalendar();
 const openedAtMs=Date.now();
 const query=new URLSearchParams(location.search);
-const state={grade:query.get('klasse')==='7'?'7':'3',day:now.day,week:now.week,year:now.year,grades:{},statuses:{},busy:false,weather:null,weatherStatus:'loading',weatherUpdated:0};
+const state={grade:query.get('klasse')==='7'?'7':'3',day:now.day,week:now.week,year:now.year,grades:{},statuses:{},busy:false,weather:null,weatherStatus:'loading',weatherUpdated:0,themeOpen:{},themeDone:{}};
 const mondayOfWeek=(year,week)=>{const jan4=new Date(Date.UTC(year,0,4));const mon=new Date(jan4);mon.setUTCDate(jan4.getUTCDate()-(jan4.getUTCDay()+6)%7+(week-1)*7);return mon;};
 const fmtDay=d=>d.toLocaleDateString('nb-NO',{timeZone:'UTC',day:'numeric',month:'2-digit'});
 const fmtFull=d=>d.toLocaleDateString('nb-NO',{timeZone:'UTC',day:'numeric',month:'long'});
@@ -83,12 +84,40 @@ function renderAfterSchool(){
  $('after-school-detail').textContent=activity.detail;
  $('after-school-ride').classList.toggle('unassigned',activity.unknownDriver);
 }
+function renderTheme(g){
+ const panel=$('week-theme');
+ const raw=(dataCurrent(g)&&typeof g.weekTheme==='string')?g.weekTheme:'';
+ const presentation=themePresentation(raw);
+ panel.hidden=!presentation;
+ if(!presentation)return;
+ panel.dataset.tone=presentation.tone;
+ $('theme-emoji').textContent=presentation.emoji;
+ $('theme-name').textContent=presentation.theme;
+ const key=themeProgressKey(now.year,now.week,state.grade,presentation.theme);
+ let progress={};try{progress=JSON.parse(localStorage.getItem(key)||'{}')}catch{}
+ const completed=state.themeDone[key]??!!progress.done;
+ const expanded=state.themeOpen[`${state.grade}:${now.week}`]||completed;
+ $('theme-quest').hidden=!expanded;
+ $('theme-reveal').setAttribute('aria-expanded',String(expanded));
+ $('theme-reveal').textContent=expanded?'Skjul minioppdrag ↑':'🎲 Se minioppdrag ↓';
+ $('theme-mission').textContent=presentation.quest;
+ $('theme-done').textContent=completed?'✓ Oppdrag fullført!':'✓ Jeg gjorde det!';
+ $('theme-done').classList.toggle('completed',completed);
+ $('theme-done').setAttribute('aria-pressed',String(completed));
+ $('theme-reveal').onclick=()=>{state.themeOpen[`${state.grade}:${now.week}`]=!expanded;renderTheme(g)};
+ $('theme-done').onclick=()=>{
+   state.themeDone[key]=!completed;
+   try{localStorage.setItem(key,JSON.stringify({done:!completed}))}catch{}
+   state.themeOpen[`${state.grade}:${now.week}`]=true;
+   renderTheme(g);
+ };
+}
 function render(){
  const g=state.grades[state.grade];const status=state.statuses[state.grade]||'loading';
  $('week-badge').textContent=`UKE ${now.week}`;
  $('hero-week-number').textContent=String(now.week);
- $('group-message').hidden=state.grade!=='3';
  setStatus(status);
+ renderTheme(g);
  document.querySelectorAll('.gradebtn').forEach(b=>{const active=b.dataset.grade===state.grade;b.classList.toggle('active',active);b.setAttribute('aria-selected',String(active))});
  const mon=mondayOfWeek(now.year,now.week);const fri=new Date(mon);fri.setUTCDate(mon.getUTCDate()+4);
  $('hero-week-range').textContent=`${fmtDay(mon)}–${fmtDay(fri)}`;
@@ -131,7 +160,7 @@ function render(){
  $('class-link').href=SECTIONS[state.grade];
  $('source-note').textContent=g?'Hentet fra Fagerholt skole. Automatisk PDF-lesing kan overse eller feiltolke detaljer – original PDF er fasiten.':'Appen søker etter ukeplanen for inneværende uke. Sjekk skolens side hvis den ikke er publisert.';
  if(status==='loading')message('Ser etter ukeplanen for inneværende uke hos Fagerholt skole …');
- else if(status==='ok')message(state.grade==='3'?'3. klasse er tilpasset rød gruppe. Felles informasjon vises også. Kontroller alltid originalplanen ved tvil.':'Oppdateres automatisk fra Fagerholt skoles publiserte ukeplan. Utdraget kan mangle detaljer – bruk lenken til originalplanen ved tvil.');
+ else if(status==='ok')message('');
  else if(status==='partial'||status==='unreadable')message(g?.warning||'Planen ble hentet, men deler av PDF-en kunne ikke leses. Kontroller originalen.', 'warn');
  else if(status==='unpublished')message(`Skolen har ennå ikke publisert en ukeplan for uke ${now.week} på trinnsiden. Appen viser ikke forrige ukes plan som om den gjaldt nå.`, 'warn');
  else if(status==='cached')message('Kunne ikke hente en fersk plan akkurat nå. Viser en tidligere hentet kopi fra samme uke. Kontroller originalplanen.', 'warn');
