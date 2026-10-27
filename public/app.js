@@ -1,4 +1,5 @@
 import {themePresentation, themeProgressKey} from './theme.mjs';
+import {rainwearExpected} from './rain.mjs';
 import {homeworkStorageKey, homeworkItemKey} from './homework.mjs';
 import {afterSchoolForDay} from './after-school.mjs';
 import {fetchJsonWithTimeout} from './network.mjs';
@@ -54,7 +55,7 @@ import {norwayCalendar, isExpiredSchoolDay, hasCalendarDateChanged, hourlyRefres
     }
     return SECTIONS[grade];
   };
-  const cachedKey = (grade) => `skolesekken.cache.v6.${start.year}.${start.week}.${grade}`;
+  const cachedKey = (grade) => `skolesekken.cache.v7.${start.year}.${start.week}.${grade}`;
   const isCurrent = (grade, data) => Boolean(data && data.year === start.year && data.week === start.week &&
     String(data.grade) === grade && data.status !== 'unpublished' && data.status !== 'error' &&
     (grade !== '3' || data.group?.key === 'rød'));
@@ -158,6 +159,19 @@ import {norwayCalendar, isExpiredSchoolDay, hasCalendarDateChanged, hourlyRefres
       state.weatherStatus === 'stale' ? 'Eldre varsel' : 'Yr · kl. 08–15'
     ].filter(Boolean).join(' · ') : 'Ingen oppdiktede værdata';
   }
+  function renderRainReminder() {
+    const forecast = state.weather?.days?.[schoolDate(state.day).toISOString().slice(0, 10)] ?? null;
+    const rain = $('rain-reminder');
+    const wet = rainwearExpected(forecast);
+    rain.hidden = !wet;
+    if (wet) {
+      const when = state.day === start.day ? 'i dag' : `på ${dayName().toLowerCase()}`;
+      rain.innerHTML = `<span class="rain-symbol" aria-hidden="true">🌧️</span>`+
+        `<span><strong>Husk regntøy før dere går ut!</strong>`+
+        `<small>Det er meldt regn ${when} i skoletiden. Ta på regnjakke og regnbukse før dere går hjemmefra.`+
+        `${state.weatherStatus === 'stale' ? ' Varslet er fra en tidligere oppdatering.' : ''}</small></span>`;
+    } else rain.innerHTML = '';
+  }
   function renderWeekdays() {
     $('weekdays').innerHTML = DAYS.map((name, i) => {
       const expired = isExpiredSchoolDay(i, start.dow);
@@ -201,28 +215,6 @@ import {norwayCalendar, isExpiredSchoolDay, hasCalendarDateChanged, hourlyRefres
     $('family-day').textContent = `${dayName()} ${fullDate(state.day)}`;
     $('family-cards').innerHTML = ['3', '7'].map(familyCard).join('');
     $('family-cards').querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => setMode(b.dataset.open)));
-    const themeCards = ['3', '7'].map(grade => {
-      const presentation = themePresentation(state.grades[grade]?.weekTheme);
-      if (!presentation) return '';
-      const key = themeProgressKey(start.year, start.week, grade, presentation.theme);
-      let stored;
-      try { stored = JSON.parse(getLocal(key) || '{}'); } catch { stored = {}; }
-      const done = Boolean(stored?.done);
-      return `<article class="family-theme tone-${esc(presentation.tone)}">`+
-        `<div class="family-theme-label"><span>${esc(presentation.emoji)} ${grade}. klasse · UKAS TEMA</span>`+
-        `${done ? '<span class="family-theme-done">✓ Gjennomført</span>' : ''}</div>`+
-        `<h3>${esc(presentation.title)}</h3>`+
-        `${presentation.subtitle ? `<p class="family-theme-subtitle">${esc(presentation.subtitle)}</p>` : ''}`+
-        `<p class="family-theme-quest"><span aria-hidden="true">🎯</span> ${esc(presentation.quest)}</p>`+
-        `<button type="button" class="family-theme-link" data-theme-grade="${grade}">${done ? 'Se oppdraget igjen' : 'Se og gjør oppdraget'} <span aria-hidden="true">→</span></button>`+
-        `</article>`;
-    }).filter(Boolean);
-    $('family-themes').innerHTML = themeCards.length ? `<div class="family-themes-heading"><span>✨ UKAS TEMA</span><small>Små handlinger gjør en forskjell</small></div>`+
-      `<div class="family-theme-grid">${themeCards.join('')}</div>` : '';
-    $('family-themes').querySelectorAll('[data-theme-grade]').forEach(button => button.addEventListener('click', () => {
-      setMode(button.dataset.themeGrade);
-      $('theme-section').scrollIntoView?.({behavior:'smooth', block:'center'});
-    }));
     $('family-bottom').innerHTML = `<div class="family-small"><h3>📚 Lekser og beskjeder</h3><p>Velg 3. eller 7. klasse for lekser fordelt på fag og dagens skolebeskjeder.</p>`+
       `<p><a href="${SECTIONS['3']}" target="_blank" rel="noopener noreferrer">3. trinn ↗</a> · <a href="${SECTIONS['7']}" target="_blank" rel="noopener noreferrer">7. trinn ↗</a></p></div>`;
   }
@@ -307,37 +299,63 @@ import {norwayCalendar, isExpiredSchoolDay, hasCalendarDateChanged, hourlyRefres
     }));
   }
   function renderTheme(grade) {
-    const presentation = themePresentation(state.grades[grade]?.weekTheme);
     const section = $('theme-section');
-    if (!presentation) {
+    // Show a theme only when selected grade has its own confirmed PDF theme.
+    if (!['3', '7'].includes(grade)) {
+      section.className = 'theme-card top-theme theme-hidden';
       section.innerHTML = '';
-      section.classList.add('theme-hidden');
       return;
     }
-    section.classList.remove('theme-hidden');
-    section.className = `secondary-card theme-card tone-${presentation.tone}`;
+    const presentation = themePresentation(state.grades[grade]?.weekTheme);
+    if (!presentation) {
+      section.className = 'theme-card top-theme theme-hidden';
+      section.innerHTML = '';
+      return;
+    }
+    section.className = `theme-card top-theme tone-${presentation.tone}`;
     const key = themeProgressKey(start.year, start.week, grade, presentation.theme);
     let stored;
     try { stored = JSON.parse(getLocal(key) || '{}'); } catch { stored = {}; }
     const done = Boolean(stored?.done);
-    section.innerHTML = `<div class="theme-layout">`+
-      `<div class="theme-heading"><div class="theme-meta"><span>✨ UKAS TEMA</span><span>UKE ${start.week}</span></div>`+
+    const expanded = !done || state.themeOpen[key] === true;
+    const heading = `<div class="theme-meta"><span>✨ UKAS TEMA · ${grade}. KLASSE</span><span>UKE ${start.week}</span></div>`+
       `<div class="theme-face"><span class="theme-emoji" aria-hidden="true">${esc(presentation.emoji)}</span>`+
       `<div><h2 class="theme-name">${esc(presentation.title)}</h2>`+
-      `${presentation.subtitle ? `<p class="theme-subtitle">${esc(presentation.subtitle)}</p>` : ''}</div></div>`+
+      `${presentation.subtitle ? `<p class="theme-subtitle">${esc(presentation.subtitle)}</p>` : ''}</div></div>`;
+    if (done && !expanded) {
+      section.classList.add('is-complete-compact');
+      section.innerHTML = `<div class="theme-compact-heading">${heading}</div>`+
+        `<div class="theme-compact-actions"><strong>✓ Oppdraget er utført!</strong>`+
+        `<button type="button" id="mission-expand" aria-expanded="false">Se oppdraget ↓</button></div>`;
+      $('mission-expand').addEventListener('click', () => {
+        state.themeOpen[key] = true;
+        renderTheme(grade);
+      });
+      return;
+    }
+    section.innerHTML = `<div class="theme-layout">`+
+      `<div class="theme-heading">${heading}`+
       `<p class="theme-school-note">Dette øver vi på denne uka.</p></div>`+
       `<div class="theme-mission ${done ? 'is-done' : ''}"><div class="mission-eyebrow">🎯 DITT OPPDRAG DENNE UKA</div>`+
       `<p class="mission-description">${esc(presentation.quest)}</p>`+
       (done ? `<div class="mission-celebrate" role="status">🎉 Så bra! Du gjennomførte oppdraget!</div>`+
-        `<button type="button" id="mission-reset" class="mission-reset">Angre avkrysning</button>` :
+        `<div class="mission-done-actions"><button type="button" id="mission-collapse" aria-expanded="true">Skjul oppdraget ↑</button>`+
+        `<button type="button" id="mission-reset" class="mission-reset">Angre avkrysning</button></div>` :
         `<button type="button" id="mission-toggle" class="mission-complete">✓ Jeg har gjort det!</button>`) +
       `<p class="quest-caption">Frivillig forslag fra Skolesekken – ikke skolelekse.</p></div></div>`;
-    if (done) $('mission-reset').addEventListener('click', () => {
-      setLocal(key, JSON.stringify({done:false}));
-      renderTheme(grade);
-    });
-    else $('mission-toggle').addEventListener('click', () => {
+    if (done) {
+      $('mission-collapse').addEventListener('click', () => {
+        state.themeOpen[key] = false;
+        renderTheme(grade);
+      });
+      $('mission-reset').addEventListener('click', () => {
+        setLocal(key, JSON.stringify({done:false}));
+        state.themeOpen[key] = true;
+        renderTheme(grade);
+      });
+    } else $('mission-toggle').addEventListener('click', () => {
       setLocal(key, JSON.stringify({done:true}));
+      state.themeOpen[key] = false;
       renderTheme(grade);
     });
   }
@@ -357,12 +375,13 @@ import {norwayCalendar, isExpiredSchoolDay, hasCalendarDateChanged, hourlyRefres
     renderProgram(grade);
     renderBag(grade);
     renderHomework(grade);
-    renderTheme(grade);
     renderNotices(grade);
   }
   function render() {
     renderIntro();
     renderWeather();
+    renderRainReminder();
+    renderTheme(state.mode);
     renderWeekdays();
     renderWarnings();
     $('family-view').classList.toggle('hidden', state.mode !== 'both');

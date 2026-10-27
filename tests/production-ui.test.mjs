@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {themePresentation, themeProgressKey} from '../public/theme.mjs';
+import {rainwearExpected} from '../public/rain.mjs';
 import {homeworkStorageKey, homeworkItemKey} from '../public/homework.mjs';
 import {afterSchoolForDay} from '../public/after-school.mjs';
 import {fetchJsonWithTimeout as loadJson} from '../public/network.mjs';
@@ -62,29 +63,32 @@ test('3.0 app starts, fetches two grades and displays live API data rather than 
     group:grade==='3'?{key:'rød'}:undefined,
     days:{[ ['Mandag','Tirsdag','Onsdag','Torsdag','Fredag'][yearWeek.day] ]:{end:'14:00', events:[{title:'Testaktivitet fra API',icon:'book',time:'09:00'}],bring:[{label:'Drikkeflaske'}]}},
     everyday:[],homework:[{subject:'Norsk',detail:'Les til fredag'},{subject:'Engelsk',detail:'Read together'}],
-    notices:[],weekTheme:'Vennskap'
+    notices:[],weekTheme:grade==='3'?'Solidaritet · Jeg bryr meg':'Respekt · Alle har en stemme'
   });
   const calls=[];
   const fetch = async url => {
     calls.push(url);
-    const data = url.startsWith('/api/weather') ? {days:{}} : fixture(url.includes('grade=7')?'7':'3');
+    const data = url.startsWith('/api/weather') ? {days:{[yearWeek.dateKey]:{rainMm:1.2,temperature:7,symbol:'rain_day',description:'Regn'}}} : fixture(url.includes('grade=7')?'7':'3');
     return {ok:true, json:async()=>data};
   };
   const raw=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
   const body=raw.replace(/^import [^\n]*\n/gm, '');
   const fn=new Function('themePresentation','themeProgressKey','homeworkStorageKey','homeworkItemKey','afterSchoolForDay','norwayCalendar',
-    'isExpiredSchoolDay','hasCalendarDateChanged','hourlyRefreshDue','REFRESH_INTERVAL_MS','fetchJsonWithTimeout',
+    'isExpiredSchoolDay','hasCalendarDateChanged','hourlyRefreshDue','REFRESH_INTERVAL_MS','fetchJsonWithTimeout','rainwearExpected',
     'document','window','localStorage','history','location','fetch','setInterval',body);
   const win={addEventListener(){}};
   fn(themePresentation,themeProgressKey,homeworkStorageKey,homeworkItemKey,afterSchoolForDay,norwayCalendar,isExpiredSchoolDay,
     hasCalendarDateChanged,hourlyRefreshDue,REFRESH_INTERVAL_MS,
-    (url,opts)=>loadJson(url,{...opts,fetchImpl:fetch}),document,win,localStorage,
+    (url,opts)=>loadJson(url,{...opts,fetchImpl:fetch}),rainwearExpected,document,win,localStorage,
     {replaceState(){}},{search:'',pathname:'/',reload(){}},fetch,()=>0);
   await new Promise(resolve=>setTimeout(resolve,5));
   assert.ok(calls.some(s=>s.includes('grade=3')));
   assert.ok(calls.some(s=>s.includes('grade=7')));
   assert.ok(calls.some(s=>s.startsWith('/api/weather')));
   assert.equal(win.__skolesekkenStarted, true, 'App must finish bootstrapping');
+  assert.equal(get('rain-reminder').hidden,false,'Rainwear warning must be visible on wet school day');
+  assert.match(get('rain-reminder').innerHTML,/Husk regntøy før dere går ut!/);
+  assert.equal(get('theme-section').innerHTML,'','Family view must not show a weekly theme');
   assert.equal(pageBody.handlers.click, undefined, 'Never bind mode switch to body: bubbling checkbox clicks would cancel native change events');
   assert.match(get('family-cards').innerHTML,/Testaktivitet fra API/);
   assert.doesNotMatch(get('family-cards').innerHTML,/Solidaritet · Jeg bryr meg/);
@@ -140,10 +144,13 @@ test('3.0 app starts, fetches two grades and displays live API data rather than 
   undo.handlers.change();
   assert.match(homeworkUI.innerHTML, /1 av 2 lekser gjort/);
   assert.ok(local.has(homeworkStorageKey(yearWeek.year,yearWeek.week,'7')));
-  assert.match(get('theme-section').innerHTML,/Vennskap/);
+  assert.match(get('theme-section').innerHTML,/Respekt/);
+  assert.doesNotMatch(get('theme-section').innerHTML,/Solidaritet/);
   assert.match(get('theme-section').innerHTML,/DITT OPPDRAG DENNE UKA/);
   assert.match(get('theme-section').innerHTML,/Jeg har gjort det!/);
   get('mission-toggle').handlers.click();
+  assert.match(get('theme-section').innerHTML,/Oppdraget er utført!/);
+  get('mission-expand').handlers.click();
   assert.match(get('theme-section').innerHTML,/Du gjennomførte oppdraget/);
   assert.equal(typeof get('mission-reset').handlers.click, 'function');
   get('mission-reset').handlers.click();
