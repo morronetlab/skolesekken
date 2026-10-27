@@ -54,8 +54,18 @@ test('3.0 theme UI shows only a theme found in the fetched PDF',async()=>{
  assert.doesNotMatch(js,/Ukas superkraft/);
  assert.doesNotMatch(js,/quest-reveal/);
  assert.doesNotMatch(html,/id="family-themes"/);
- assert.ok(html.indexOf('id="theme-section"') < html.indexOf('id="weekdays"'));
- assert.ok(html.indexOf('class="main-top"') < html.indexOf('id="theme-section"'));
+ // Only the child's detail page contains the theme; it comes after homework and before notices.
+ const detail=html.slice(html.indexOf('<section id="detail-view"'),html.indexOf('</main>'));
+ const homeworkIndex=detail.indexOf('id="homework-section"');
+ const themeIndex=detail.indexOf('id="theme-section"');
+ const noticesIndex=detail.indexOf('id="notices-details"');
+ assert.ok(homeworkIndex >= 0 && themeIndex > homeworkIndex && noticesIndex > themeIndex,
+   'Ukas tema must appear between homework and school notices');
+ assert.ok(html.indexOf('id="theme-section"') > html.indexOf('id="weekdays"'),
+   'Ukas tema must not appear above the school day picker');
+ assert.equal((html.match(/id="theme-section"/g)||[]).length,1);
+ assert.match(detail,/id="theme-section"/);
+ assert.doesNotMatch(html.slice(html.indexOf('<section id="family-view"'),html.indexOf('<section id="detail-view"')),/id="theme-section"/);
  assert.match(js,/mission-expand/);
  assert.match(js,/themeOpen\[key\] = false/);
 });
