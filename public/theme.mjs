@@ -15,8 +15,13 @@ const PRESETS = [
 export function themePresentation(raw){
  const theme=String(raw||'').replace(/\s+/g,' ').trim();
  if(!theme)return null;
+ // Some PDFs pair the main theme with a social goal after a middle dot.
+ // Keep the actual school's main theme as the dominant heading.
+ const [title, ...extra] = theme.split(/\s+[·•]\s+/).map(s => s.trim()).filter(Boolean);
+ const subtitle = extra.join(' · ');
  const found=PRESETS.find(p=>p.rx.test(theme));
- return {theme,emoji:found?.emoji||'🌟',tone:found?.tone||'blue',quest:found?.quest||`Snakk sammen: Hva betyr «${theme}» for deg, og hvordan kan du vise det denne uka?`};
+ return {theme,title,subtitle,emoji:found?.emoji||'🌟',tone:found?.tone||'blue',
+   quest:found?.quest||`Snakk sammen: Hva betyr «${title}» for deg, og hvordan kan du vise det denne uka?`};
 }
 export function themeProgressKey(year,week,grade,theme){
  return `skolesekken.tema.v1.${year}.${week}.${grade}.${encodeURIComponent(String(theme).toLowerCase())}`;
