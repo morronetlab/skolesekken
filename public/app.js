@@ -142,7 +142,7 @@ import {norwayCalendar, isExpiredSchoolDay, hasCalendarDateChanged, hourlyRefres
     $('header-title').textContent = title;
     $('header-desc').textContent = desc;
     $('top-source').href = source(state.mode === '7' ? '7' : '3');
-    for (const button of document.querySelectorAll('[data-mode]')) {
+    for (const button of document.querySelectorAll('button[data-mode]')) {
       const active = button.dataset.mode === state.mode;
       button.classList.toggle('selected', active);
       button.setAttribute('aria-selected', String(active));
@@ -455,7 +455,7 @@ import {norwayCalendar, isExpiredSchoolDay, hasCalendarDateChanged, hourlyRefres
     try { await Promise.all([loadGrade('3', fresh), loadGrade('7', fresh), loadWeather(fresh)]); }
     finally { state.fetching = false; render(); }
   }
-  document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => setMode(button.dataset.mode)));
+  document.querySelectorAll('button[data-mode]').forEach(button => button.addEventListener('click', () => setMode(button.dataset.mode)));
   document.querySelector('.logo').addEventListener('click', (event) => { event.preventDefault(); setMode('both'); });
   $('refresh').addEventListener('click', () => refreshAll(true));
   restoreCachedData();
