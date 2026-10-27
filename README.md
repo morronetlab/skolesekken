@@ -1,10 +1,17 @@
-# Skolesekken 3.0.2 – Morgenklar 🎒
+# Skolesekken 3.0.3 – Morgenklar 🎒
 
 Komplett Netlify-app for **3. klasse (rød gruppe)** og **7. klasse** ved Fagerholt skole.
 
 Dette er **produksjonsprosjektet**, ikke den tidligere statiske designprototypen. Frontend er bygget om til 3.0-designet, mens eksisterende Netlify Functions for ukeplan og vær er videreført. Ingen uke 44-eksempeldata vises som gjeldende ukeplan.
 
-## Hva er nytt i 3.0.2?
+## Hva er nytt i 3.0.3?
+
+- **Lekseavkrysning:** Hver lekse kan merkes som ferdig ved å trykke på teksten eller avkrysningsboksen.
+- **Progresjon:** Teller antall ferdige lekser, viser status på fagfanene og feirer når alle er gjort.
+- **Husker utførte lekser:** Lagres i nettleseren per barn og ISO-uke, også ved fanebytte og omlasting.
+- **Ingen endringer i innhenting:** Bruker samme skole-PDF, vær-API og klassefiltrering som før.
+
+## Hva var nytt i 3.0.2?
 
 - **Temaet fra skolens PDF er hovedoverskriften**: «Solidaritet» fremheves; «Jeg bryr meg» vises som undertittel når det følger med.
 - **Oppdraget er alltid synlig** i et tydelig kort med knappen «Jeg har gjort det!», hyggelig bekreftelse og mulighet for å angre.
@@ -18,7 +25,7 @@ Dette er **produksjonsprosjektet**, ikke den tidligere statiske designprototypen
 - **7. klasse:** skoleaktiviteter og fritidsaktiviteter integrert i samme dagskort. Hip-hop **mandag og torsdag**; tennis **onsdag**.
 - **Kjøreplan for 2026:** Nora uke 37, 42, 46; Julie 38, 43, 47; Smilla 39, 44, 48; Maya 41, 45, 49. Tennis: Maya partallsuker og Julie oddetallsuker. Ingen gjetting for manglende kjøreuker.
 - **Vær** for valgt skoledag, fra MET/Yr for koordinatene i Pent-lenken. Ingen fiktive prognoser.
-- **Lekser i fagfaner** (norsk og engelsk er skilt), **Ukas superkraft**, minioppdrag og beskjeder i sammenleggbart felt.
+- **Lekser i fagfaner** (norsk og engelsk er skilt), **Ukas tema**, minioppdrag og beskjeder i sammenleggbart felt.
 - **Oppdatering:** nettsiden laster seg på nytt hver 60. minutt, ved datoovergang og når fanen vekkes etter lang dvale. Tidligere dager i uken er deaktivert.
 - **Avkrysninger:** eksisterende `skolesekken.pack.v6...`-nøkler gjenbrukes, slik at pakkestatus fra 2.5 bevares på samme enhet.
 
@@ -53,7 +60,7 @@ Dette er **produksjonsprosjektet**, ikke den tidligere statiske designprototypen
 
 3. GitHub-grensesnittet egner seg ikke alltid til å erstatte eksisterende undermapper. Tryggest er å pakke ut ZIP-en i en lokal kopi av repositoryet og gjøre `git add -A`, `git commit` og `git push`. Alternativt bruk Codex med tilgang til repositoryet.
 4. Kontroller at Netlify-prosjektet bruker repositoryet som kilde, og at det ikke finnes egne UI-innstillinger som overstyrer `netlify.toml`.
-5. Når Netlify viser **Published**, åpne https://lucent-marigold-876014.netlify.app/ og sjekk både familievisning, 3. klasse og 7. klasse.
+5. Når Netlify viser **Published**, åpne https://fagerholt.netlify.app/ og sjekk både familievisning, 3. klasse og 7. klasse.
 
 Netlify-konfigurasjonen i prosjektet:
 
