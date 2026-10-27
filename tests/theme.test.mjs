@@ -37,13 +37,13 @@ test('check-offs are isolated by grade, week, year and actual theme',()=>{
  assert.notEqual(a,themeProgressKey(2026,44,'3','Vennskap'));
  assert.notEqual(a,themeProgressKey(2027,44,'3','Solidaritet'));
 });
-test('theme UI is wired without an always-visible empty theme box',async()=>{
+test('3.0 theme UI shows only a theme found in the fetched PDF',async()=>{
  const {readFileSync}=await import('node:fs');
  const html=readFileSync(new URL('../public/index.html',import.meta.url),'utf8');
  const js=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
- assert.match(html,/id="week-theme"[^>]*hidden/);
- assert.match(html,/id="theme-reveal"/);
- assert.match(html,/id="theme-mission"/);
- assert.match(js,/renderTheme\(g\)/);
- assert.match(js,/themeProgressKey\(now.year,now.week,state.grade,presentation.theme\)/);
+ assert.match(html,/id="theme-section"/);
+ assert.match(js,/themePresentation\(raw\)/);
+ assert.match(js,/classList\.add\('theme-hidden'\)/);
+ assert.match(js,/themeProgressKey\(start.year, start.week, grade, presentation.theme\)/);
+ assert.match(js,/Frivillig forslag fra Skolesekken/);
 });

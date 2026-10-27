@@ -1,223 +1,383 @@
 import {themePresentation, themeProgressKey} from './theme.mjs';
 import {afterSchoolForDay} from './after-school.mjs';
 import {norwayCalendar, isExpiredSchoolDay, hasCalendarDateChanged, hourlyRefreshDue, REFRESH_INTERVAL_MS} from './calendar.mjs';
-(() => {
-'use strict';
-const DAYS=['Mandag','Tirsdag','Onsdag','Torsdag','Fredag'];
-const DAY_EMOJI=['🌤️','🎨','📚','✨','🎉'];
-const SECTIONS={'3':'https://www.minskole.no/fagerholt/seksjon/22636','7':'https://www.minskole.no/fagerholt/seksjon/22640'};
-const $=id=>document.getElementById(id);
-const clean=s=>String(s??'');
-const esc=s=>clean(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const icon=(name,size=20)=>`<svg width="${size}" height="${size}" aria-hidden="true"><use href="#i-${['bag','check','refresh','book','calendar','trees','waves','activity','music','sparkles','bus','sun','scissors','gift'].includes(name)?name:'book'}"/></svg>`;
-const now=norwayCalendar();
-const openedAtMs=Date.now();
-const query=new URLSearchParams(location.search);
-const state={grade:query.get('klasse')==='7'?'7':'3',day:now.day,week:now.week,year:now.year,grades:{},statuses:{},busy:false,weather:null,weatherStatus:'loading',weatherUpdated:0,themeOpen:{},themeDone:{}};
-const mondayOfWeek=(year,week)=>{const jan4=new Date(Date.UTC(year,0,4));const mon=new Date(jan4);mon.setUTCDate(jan4.getUTCDate()-(jan4.getUTCDay()+6)%7+(week-1)*7);return mon;};
-const fmtDay=d=>d.toLocaleDateString('nb-NO',{timeZone:'UTC',day:'numeric',month:'2-digit'});
-const fmtFull=d=>d.toLocaleDateString('nb-NO',{timeZone:'UTC',day:'numeric',month:'long'});
-const isSmall=()=>matchMedia('(max-width:750px)').matches;
-const dataCurrent=g=>g&&g.week===now.week&&g.year===now.year&&g.status!=='unpublished'&&g.status!=='error'&&(g.grade==='7'||g.group?.key==='rød');
-const cacheKey=(grade)=>`skolesekken.cache.v6.${now.year}.${now.week}.${grade}`;
-function cacheGet(grade){try{const d=JSON.parse(localStorage.getItem(cacheKey(grade))||'null');return dataCurrent(d)?d:null}catch{return null}}
-function cacheSet(grade,plan){try{localStorage.setItem(cacheKey(grade),JSON.stringify(plan))}catch{}}
-function message(text,kind='info'){
- const box=$('preview-message');box.hidden=!text;box.textContent=text||'';box.classList.toggle('danger',kind==='warn');
-}
-function errorBox(text){const el=$('error-message');el.hidden=!text;el.textContent=text||''}
-function setStatus(status){
- const good=status==='ok';const partial=status==='partial'||status==='unreadable';
- $('status-pill').textContent=good?'Oppdatert ukeplan':partial?'Delvis lest ukeplan':status==='loading'?'Henter planen…':status==='cached'?'Lagret ukeplan':status==='unpublished'?'Ikke publisert ennå':'Kan ikke hente ukeplan';
- $('status-dot').style.background=good?'#58ab83':status==='loading'?'#9db4b0':'#dfa466';
-}
 
-const weatherCacheKey='skolesekken.weather.v1';
-function renderWeather(selected,dayName){
- const key=selected.toISOString().slice(0,10);
- const record=state.weather?.days?.[key]||null;
- $('weather-day').textContent=`${dayName} ${fmtDay(selected)}`;
- $('weather-icon').textContent=record?.icon || (state.weatherStatus==='loading'?'⌛':'🌥️');
- $('weather-temp').textContent=typeof record?.temperature==='number'?`${Math.round(record.temperature)}°`:'—';
- $('weather-description').textContent=record?.description || (state.weatherStatus==='demo'?'Eksempelvisning – ikke live vær':state.weatherStatus==='loading'?'Henter værmelding…':state.weatherStatus==='error'?'Været er utilgjengelig':'Ingen værdata for dagen');
- const tempRange=typeof record?.minTemp==='number'&&typeof record?.maxTemp==='number'
-   ? `${Math.round(record.minTemp)}° til ${Math.round(record.maxTemp)}° · kl. 08–15`
-   : 'Vær i skoletiden · kl. 08–15';
- $('weather-range').textContent=tempRange;
- $('weather-rain').textContent=typeof record?.rainMm==='number'
-   ? `💧 ${record.rainApproximate?'Ca. ':''}${String(record.rainMm).replace('.',',')} mm nedbør`
-   : '💧 Nedbør: —';
- $('weather-wind').textContent=typeof record?.windMs==='number'
-   ? `🍃 ${String(record.windMs).replace('.',',')} m/s vind`
-   : '🍃 Vind: —';
- $('weather-credit').textContent=state.weatherStatus==='demo'?'· Ingen live-data i forhåndsvisning':state.weatherStatus==='stale'?'· eldre varsel':'· Yr-prognose';
-}
-async function loadWeather(force=false){
- state.weatherStatus=state.weather?'stale':'loading';render();
- try {
-  const url='/api/weather'+(force?`?fresh=1&t=${Date.now()}`:'');
-  const response=await fetch(url,{cache:force?'no-store':'default'});
-  const weather=await response.json();
-  if(!response.ok || !weather.days || typeof weather.days!=='object')throw new Error(weather.warning||`HTTP ${response.status}`);
-  state.weather=weather;
-  state.weatherStatus=weather.demo?'demo':weather.stale?'stale':'ok';
-  state.weatherUpdated=Date.now();
-  try{localStorage.setItem(weatherCacheKey,JSON.stringify({savedAt:Date.now(),data:weather}))}catch{}
- } catch(error){
-  let cached=null;
-  try{cached=JSON.parse(localStorage.getItem(weatherCacheKey)||'null')}catch{}
-  if(cached?.data?.days && Date.now()-cached.savedAt < 4*3600000){state.weather=cached.data;state.weatherStatus='stale'}
-  else {state.weather=null;state.weatherStatus='error'}
- } finally{render()}
-}
-function renderAfterSchool(){
- const activity=afterSchoolForDay({grade:state.grade,year:now.year,week:now.week,dayIndex:state.day});
- const panel=$('after-school');panel.hidden=!activity;
- if(!activity)return;
- panel.classList.toggle('tennis',activity.type==='tennis');
- $('after-school-week').textContent=`UKE ${activity.week}`;
- $('after-school-icon').textContent=activity.emoji;
- $('after-school-title').textContent=activity.title;
- $('after-school-subtitle').textContent=`${activity.weekday} · Etter skolen · Klokkeslett ikke oppgitt`;
- $('after-school-ride-overline').textContent=activity.type==='dance'?'Oppmøte for kjøring':'Hvem kjører?';
- $('after-school-driver').textContent=activity.driverLabel;
- $('after-school-detail').textContent=activity.detail;
- $('after-school-ride').classList.toggle('unassigned',activity.unknownDriver);
-}
-function renderTheme(g){
- const panel=$('week-theme');
- const raw=(dataCurrent(g)&&typeof g.weekTheme==='string')?g.weekTheme:'';
- const presentation=themePresentation(raw);
- panel.hidden=!presentation;
- if(!presentation)return;
- panel.dataset.tone=presentation.tone;
- $('theme-emoji').textContent=presentation.emoji;
- $('theme-name').textContent=presentation.theme;
- const key=themeProgressKey(now.year,now.week,state.grade,presentation.theme);
- let progress={};try{progress=JSON.parse(localStorage.getItem(key)||'{}')}catch{}
- const completed=state.themeDone[key]??!!progress.done;
- const expanded=state.themeOpen[`${state.grade}:${now.week}`]||completed;
- $('theme-quest').hidden=!expanded;
- $('theme-reveal').setAttribute('aria-expanded',String(expanded));
- $('theme-reveal').textContent=expanded?'Skjul minioppdrag ↑':'🎲 Se minioppdrag ↓';
- $('theme-mission').textContent=presentation.quest;
- $('theme-done').textContent=completed?'✓ Oppdrag fullført!':'✓ Jeg gjorde det!';
- $('theme-done').classList.toggle('completed',completed);
- $('theme-done').setAttribute('aria-pressed',String(completed));
- $('theme-reveal').onclick=()=>{state.themeOpen[`${state.grade}:${now.week}`]=!expanded;renderTheme(g)};
- $('theme-done').onclick=()=>{
-   state.themeDone[key]=!completed;
-   try{localStorage.setItem(key,JSON.stringify({done:!completed}))}catch{}
-   state.themeOpen[`${state.grade}:${now.week}`]=true;
-   renderTheme(g);
- };
-}
-function render(){
- const g=state.grades[state.grade];const status=state.statuses[state.grade]||'loading';
- $('week-badge').textContent=`UKE ${now.week}`;
- $('hero-week-number').textContent=String(now.week);
- setStatus(status);
- renderTheme(g);
- document.querySelectorAll('.gradebtn').forEach(b=>{const active=b.dataset.grade===state.grade;b.classList.toggle('active',active);b.setAttribute('aria-selected',String(active))});
- const mon=mondayOfWeek(now.year,now.week);const fri=new Date(mon);fri.setUTCDate(mon.getUTCDate()+4);
- $('hero-week-range').textContent=`${fmtDay(mon)}–${fmtDay(fri)}`;
- $('week-dates').textContent=`${mon.toLocaleDateString('nb-NO',{timeZone:'UTC',weekday:'long'})} ${fmtDay(mon)} – ${fri.toLocaleDateString('nb-NO',{timeZone:'UTC',weekday:'long'})} ${fmtDay(fri)}`;
- $('fetched').textContent=`Fagerholt skole · ${now.year}`;
- $('weekend-note').hidden=now.dow<5;
- $('refresh').disabled=state.busy;
- const dayName=DAYS[state.day];const d=g?.days?.[dayName]||{events:[],bring:[]};
- $('daygrid').innerHTML=DAYS.map((name,i)=>{
-  const d=g?.days?.[name]||{};const date=new Date(mon);date.setUTCDate(mon.getUTCDate()+i);
-  const expired=isExpiredSchoolDay(i,now.dow);const active=state.day===i&&!expired;
-  return `<button type="button" class="daycard${active?' active':''}${expired?' expired':''}" data-day="${i}" aria-pressed="${active}" aria-label="${name} ${fmtDay(date)}${expired?' – utgått':''}" ${expired?'disabled title="Dagen er utgått"':''}><span class="dname">${name}<span class="date">${fmtDay(date)}</span></span>${expired?'<span class="expired-badge">✓ Utgått</span>':''}<span class="di">${DAY_EMOJI[i]}</span><span class="ds">${esc(d.subtitle|| (status==='loading'?'Laster ukeplan…':'Se originalplan'))}</span><span class="endtime">${d.end?'Slutt '+esc(d.end):''}</span>${(()=>{const wd=state.weather?.days?.[date.toISOString().slice(0,10)];return wd&&wd.temperature!==null?`<span class="day-weather">${esc(wd.icon)} ${Math.round(wd.temperature)}°</span>`:''})()}${(()=>{const a=afterSchoolForDay({grade:state.grade,year:now.year,week:now.week,dayIndex:i});return a?`<span class="day-after-school">${esc(a.emoji)} ${esc(a.type==='dance'?'Hip-hop':'Tennis')}</span>`:''})()}</button>`;
- }).join('');
- $('daygrid').querySelectorAll('button:not(:disabled)').forEach(btn=>btn.onclick=()=>{
-  const index=Number(btn.dataset.day);if(isExpiredSchoolDay(index,norwayCalendar().dow))return;
-  state.day=index;render();
- });
- const selected=new Date(mon);selected.setUTCDate(mon.getUTCDate()+state.day);
- renderWeather(selected,dayName);
- renderAfterSchool();
- $('selected-date').textContent=`${now.dow>=5?'UTGÅTT · ':''}${dayName.toUpperCase()} ${fmtFull(selected).toUpperCase()} · ${state.grade}. KLASSE${state.grade==='3'?' · RØD GRUPPE':''}`;
- $('selected-day').textContent=now.dow>=5?'Siste skoledag denne uken':`Dette skjer på ${dayName.toLowerCase()}`;
- $('schoolhours').textContent=d.start&&d.end?`Skole ${d.start} – ${d.end}`:d.end?`Slutt ${d.end} · se originalen for starttid`:'Sjekk originalplanen for full timeplan';
- $('notice-banner').hidden=!d.alert||!g;$('alert-text').textContent=d.alert||'';
- const events=d.events||[];
- $('events').innerHTML=events.length?events.map(e=>`<article class="event"><div class="event-icon tone-${esc(e.tone||'aqua')}">${icon(e.icon||'book')}</div><div class="event-body"><div class="event-time">${esc(e.time||'Fra ukeplanen')}</div><h4 class="event-title">${esc(e.title||'Aktivitet')}</h4>${e.detail?`<p class="event-desc">${esc(e.detail)}</p>`:''}</div></article>`).join(''):`<p class="empty">${status==='loading'?'Henter ukeplanen fra skolen…':g?'Ingen konkrete aktiviteter er oppgitt for denne dagen. Se originalplanen for full oversikt.':'Ingen bekreftet ukeplan tilgjengelig. Bruk lenken til skolens trinnside nedenfor.'}</p>`;
- const items=[...(g?.everyday||[]),...(d.bring||[])].filter(item=>!['Penal','Skiftetøy'].includes(item.label));
- const unique=[...new Map(items.map(item=>[item.label,item])).values()];
- const packKey=`skolesekken.pack.v6.${now.year}.${now.week}.${state.grade}.${dayName}`;
- let packed={};try{packed=JSON.parse(localStorage.getItem(packKey)||'{}')}catch{}
- $('pack-items').innerHTML=unique.length?unique.map((v,i)=>`<label class="checkrow ${packed[v.label]?'done':''}"><input type="checkbox" data-label="${esc(v.label)}" ${packed[v.label]?'checked':''} aria-label="${esc(v.label)}"><span class="checktext">${esc(v.label)}<small>${esc(v.note||'')}</small></span></label>`).join(''):`<p class="empty">${g?'Ingen spesielle ting registrert for denne dagen. Husk de vanlige skolesakene.':'Pakkelisten vises når en ukeplan er hentet.'}</p>`;
- const progress=()=>{const checks=[...document.querySelectorAll('#pack-items input')];const yes=checks.filter(c=>c.checked).length;$('progress-label').textContent=`${yes} av ${checks.length} pakket`;$('progress-fill').style.width=checks.length?`${yes/checks.length*100}%`:'0%';$('ready').hidden=!checks.length||yes!==checks.length;};
- $('pack-items').querySelectorAll('input').forEach(el=>el.onchange=()=>{packed[el.dataset.label]=el.checked;try{localStorage.setItem(packKey,JSON.stringify(packed))}catch{}el.closest('.checkrow').classList.toggle('done',el.checked);progress()});progress();
- const homework=g?.homework||[];
- $('homework').innerHTML=homework.length?homework.map((h,i)=>`<article class="hw-item"><span class="hw-label tone-${esc(h.tone||'peach')}">${esc(h.subject)}</span><p class="hw-text">${esc(h.detail)}</p></article>`).join(''):'<p class="empty">Ingen lekser hentet fra ukeplanen.</p>';
- const notices=g?.notices||[];
- $('notices').innerHTML=notices.length?notices.map(n=>`<article class="note-item"><span class="note-icon tone-${esc(n.tone||'sky')}">${icon(n.icon||'book',17)}</span><div><p class="note-title">${esc(n.title||'Beskjed')}</p><p class="note-detail">${esc(n.detail||'')}</p></div></article>`).join(''):'<p class="empty">Ingen ukebeskjeder er registrert. Se skolens originalplan.</p>';
- $('pdf-link').href=(dataCurrent(g)&&g.pdf)?g.pdf:SECTIONS[state.grade];
- $('pdf-link').textContent=(dataCurrent(g)&&g.pdf)?'Se original ukeplan ↗':'Se ukeplaner hos skolen ↗';
- $('class-link').href=SECTIONS[state.grade];
- $('source-note').textContent=g?'Hentet fra Fagerholt skole. Automatisk PDF-lesing kan overse eller feiltolke detaljer – original PDF er fasiten.':'Appen søker etter ukeplanen for inneværende uke. Sjekk skolens side hvis den ikke er publisert.';
- if(status==='loading')message('Ser etter ukeplanen for inneværende uke hos Fagerholt skole …');
- else if(status==='ok')message('');
- else if(status==='partial'||status==='unreadable')message(g?.warning||'Planen ble hentet, men deler av PDF-en kunne ikke leses. Kontroller originalen.', 'warn');
- else if(status==='unpublished')message(`Skolen har ennå ikke publisert en ukeplan for uke ${now.week} på trinnsiden. Appen viser ikke forrige ukes plan som om den gjaldt nå.`, 'warn');
- else if(status==='cached')message('Kunne ikke hente en fersk plan akkurat nå. Viser en tidligere hentet kopi fra samme uke. Kontroller originalplanen.', 'warn');
- else message('Ukeplanen kunne ikke hentes akkurat nå. Prøv «Oppdater» eller åpne trinnets side.', 'warn');
-}
-async function loadGrade(grade,manual=false){
- if(state.busy)return;
- state.busy=true;state.statuses[grade]='loading';errorBox('');render();
- try{
-   const suffix=manual?`&fresh=1&_=${Date.now()}`:'';
-   const response=await fetch(`/api/plan?grade=${encodeURIComponent(grade)}${suffix}`,{cache:manual?'no-store':'default'});
-   const data=await response.json();
-   if(!response.ok||data.status==='error')throw new Error(data.warning||`HTTP ${response.status}`);
-   if(data.week!==now.week||data.year!==now.year)throw new Error('Fikk en ukeplan med feil ukenummer');
-   if(grade==='3'&&data.status!=='unpublished'&&data.group?.key!=='rød')throw new Error('Fikk en plan som ikke er filtrert for rød gruppe');
-   if(data.status==='unpublished'){
-     state.grades[grade]=null;state.statuses[grade]='unpublished';
-   }else{
-     state.grades[grade]=data;state.statuses[grade]=data.status||'partial';cacheSet(grade,data);
-   }
- }catch(error){
-   const cached=cacheGet(grade);
-   if(cached){state.grades[grade]=cached;state.statuses[grade]='cached';}
-   else{state.grades[grade]=null;state.statuses[grade]='error';errorBox('Klarte ikke å hente siste ukeplan: '+esc(error.message||'Ukjent feil'));}
- }finally{
-   state.busy=false;render();
- }
-}
-const seed=JSON.parse($('seed').textContent);
-if(now.year===seed.year&&now.week===seed.week){
-  for(const g of ['3','7']){
-    const data=seed.grades?.[g];if(data&&(g!=='3'||data.group?.key==='rød')){state.grades[g]={...data,year:now.year,week:now.week,status:'ok'};state.statuses[g]='cached'}
+// Skolesekken 3.0 «Morgenklar» — production UI for existing Netlify APIs.
+// Unlike the design prototype, this app never presents sample/seed data as the current plan.
+(() => {
+  'use strict';
+  const DAYS = ['Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag'];
+  const SECTIONS = {
+    '3': 'https://www.minskole.no/fagerholt/seksjon/22636',
+    '7': 'https://www.minskole.no/fagerholt/seksjon/22640'
+  };
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[c]);
+  const start = norwayCalendar();
+  const openedAt = Date.now();
+  const search = new URLSearchParams(location.search);
+  const initialMode = ['3', '7'].includes(search.get('klasse')) ? search.get('klasse') : 'both';
+  const state = {
+    mode: initialMode, day: start.day, grades: {'3': null, '7': null},
+    statuses: {'3': 'loading', '7': 'loading'},
+    fetching: false, weather: null, weatherStatus: 'loading',
+    subjects: {'3': null, '7': null}, themeOpen: {},
+  };
+  const mondayOfWeek = (year, week) => {
+    const jan4 = new Date(Date.UTC(year, 0, 4));
+    const mon = new Date(jan4);
+    mon.setUTCDate(jan4.getUTCDate() - (jan4.getUTCDay() + 6) % 7 + (week - 1) * 7);
+    return mon;
+  };
+  const monday = mondayOfWeek(start.year, start.week);
+  const schoolDate = (index) => {
+    const date = new Date(monday);
+    date.setUTCDate(date.getUTCDate() + index);
+    return date;
+  };
+  const dayStr = (index) => schoolDate(index).toLocaleDateString('nb-NO', {timeZone: 'UTC', day: 'numeric', month: 'short'});
+  const fullDate = (index) => schoolDate(index).toLocaleDateString('nb-NO', {timeZone: 'UTC', day: 'numeric', month: 'long'});
+  const todayText = () => start.date.toLocaleDateString('nb-NO', {timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric'});
+  const dayName = () => DAYS[state.day];
+  const source = (grade) => {
+    const p = state.grades[grade]?.pdf;
+    if (typeof p === 'string') {
+      try {
+        const u = new URL(p);
+        if (u.protocol === 'https:' && ['minskole.no', 'www.minskole.no'].includes(u.hostname)) return p;
+      } catch { /* use trusted grade page instead */ }
+    }
+    return SECTIONS[grade];
+  };
+  const cachedKey = (grade) => `skolesekken.cache.v6.${start.year}.${start.week}.${grade}`;
+  const isCurrent = (grade, data) => Boolean(data && data.year === start.year && data.week === start.week &&
+    String(data.grade) === grade && data.status !== 'unpublished' && data.status !== 'error' &&
+    (grade !== '3' || data.group?.key === 'rød'));
+  const cacheGet = (grade) => {
+    try { const val = JSON.parse(localStorage.getItem(cachedKey(grade)) || 'null'); return isCurrent(grade, val) ? val : null; }
+    catch { return null; }
+  };
+  const cacheSet = (grade, val) => { try { localStorage.setItem(cachedKey(grade), JSON.stringify(val)); } catch {} };
+  const getLocal = (key) => { try { return localStorage.getItem(key); } catch { return null; } };
+  const setLocal = (key, val) => { try { localStorage.setItem(key, val); } catch {} };
+  const packKey = (grade, day) => `skolesekken.pack.v6.${start.year}.${start.week}.${grade}.${day}`;
+  const packed = (grade, day) => {
+    try { return JSON.parse(getLocal(packKey(grade, day)) || '{}') || {}; } catch { return {}; }
+  };
+  const packItems = (grade, day) => {
+    const g = state.grades[grade];
+    if (!g) return [];
+    const items = [...(g.everyday || []), ...(g.days?.[day]?.bring || [])].filter(i =>
+      i && typeof i.label === 'string' && !/^(penal|skiftetøy)$/i.test(i.label.trim()));
+    return [...new Map(items.map(i => [i.label.trim().toLocaleLowerCase('nb-NO'), i])).values()];
+  };
+  function storePack(grade, day, label, checked) {
+    const saved = packed(grade, day);
+    saved[label] = checked;
+    setLocal(packKey(grade, day), JSON.stringify(saved));
+    render();
   }
-}
-const hello=['God mandag!','God tirsdag!','God onsdag!','God torsdag!','God fredag!','God helg!','God søndag!'];
-$('hello').innerHTML=esc(hello[now.dow])+' <span aria-hidden="true">☀️</span>';
-document.querySelectorAll('.gradebtn').forEach(btn=>btn.addEventListener('click',()=>{
- state.grade=btn.dataset.grade;try{history.replaceState(null,'',`${location.pathname}?klasse=${state.grade}`)}catch{}render();
- if(!state.statuses[state.grade]||state.statuses[state.grade]==='cached')loadGrade(state.grade);
-}));
-$('refresh').title='Hent siste ukeplan fra skolen';$('refresh').innerHTML=icon('refresh',16)+' Oppdater';
-$('refresh').addEventListener('click',()=>{loadGrade(state.grade,true);loadWeather(true)});
-render();
-loadGrade(state.grade);
-loadWeather();
-// Refresh the whole page after one hour. Also react promptly at midnight in Norway.
-// Browsers may throttle timers in background tabs: visibility/focus catches up on return.
-let reloading=false;
-function reloadWhenDue(){
- if(reloading)return;
- const current=norwayCalendar();
- if(hasCalendarDateChanged(now,current)||hourlyRefreshDue(openedAtMs,Date.now())){
-  reloading=true;location.reload();
- }
-}
-setInterval(reloadWhenDue,REFRESH_INTERVAL_MS);
-setInterval(reloadWhenDue,60*1000); // Detect the next day, even before the hourly refresh.
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')reloadWhenDue()});
-window.addEventListener('focus',reloadWhenDue);
+  function statusText(grade) {
+    const status = state.statuses[grade];
+    return ({ok: 'Ukeplan oppdatert', partial: 'Delvis lest ukeplan', unreadable: 'Ufullstendig ukeplan',
+      loading: 'Henter ukeplan…', unpublished: 'Ukeplan ikke publisert', cached: 'Lagret kopi · samme uke',
+      error: 'Ukeplan utilgjengelig'})[status] || 'Venter på ukeplan';
+  }
+  function statusClass(grade) {
+    const status = state.statuses[grade];
+    return ['partial', 'unreadable', 'unpublished', 'cached'].includes(status) ? 'warn' : status === 'error' ? 'bad' : '';
+  }
+  function noticesForSelectedView() {
+    const grades = state.mode === 'both' ? ['3', '7'] : [state.mode];
+    const warnings = [];
+    for (const grade of grades) {
+      const status = state.statuses[grade];
+      const data = state.grades[grade];
+      const name = `${grade}. klasse`;
+      if (['partial', 'unreadable'].includes(status)) {
+        warnings.push({kind:'warning', text:`${name}: ${data?.warning || 'PDF-en kunne ikke leses fullstendig.'} Kontroller originalen.`});
+      } else if (status === 'unpublished') {
+        warnings.push({kind:'warning', text:`${name}: Skolen har ikke publisert en lesbar plan for uke ${start.week}.`});
+      } else if (status === 'cached') {
+        warnings.push({kind:'warning', text:`${name}: Kun en tidligere hentet kopi fra samme uke er tilgjengelig. Sjekk originalen.`});
+      } else if (status === 'error') {
+        warnings.push({kind:'danger', text:`${name}: Kan ikke hente ukeplanen nå. Se originalen hos skolen eller prøv Oppdater.`});
+      }
+    }
+    return warnings;
+  }
+  function renderWarnings() {
+    $('warnings').innerHTML = noticesForSelectedView().map(w =>
+      `<div class="warning ${w.kind === 'danger' ? 'danger' : ''}">${esc(w.text)}</div>`).join('');
+  }
+  function setMode(mode) {
+    if (!['both', '3', '7'].includes(mode)) return;
+    state.mode = mode;
+    $('notices-details').open = false;
+    try { history.replaceState(null, '', `${location.pathname}${mode === 'both' ? '' : `?klasse=${mode}`}`); } catch {}
+    render();
+  }
+  function renderIntro() {
+    document.body.dataset.mode = state.mode;
+    $('week-number').textContent = `UKE ${start.week}`;
+    $('current-date').textContent = todayText();
+    $('header-kicker').textContent = `${dayName().toUpperCase()} ${fullDate(state.day).toUpperCase()}`;
+    const intros = {
+      both: ['Hei, familie! 👋', 'To skolebarn, én oversikt over dagen. Se hva som skjer og hva som skal pakkes.'],
+      '3': ['Klar for skoledagen? 🚀', '3. klasse · rød gruppe. Her er det viktigste å huske i dag.'],
+      '7': ['Din dag, på ett sted ✌️', '7. klasse. Skole, aktiviteter og kjøring – uten å måtte lete.']
+    };
+    const [title, desc] = intros[state.mode];
+    $('header-title').textContent = title;
+    $('header-desc').textContent = desc;
+    $('top-source').href = source(state.mode === '7' ? '7' : '3');
+    for (const button of document.querySelectorAll('[data-mode]')) {
+      const active = button.dataset.mode === state.mode;
+      button.classList.toggle('selected', active);
+      button.setAttribute('aria-selected', String(active));
+    }
+  }
+  function renderWeather() {
+    const forecast = state.weather?.days?.[schoolDate(state.day).toISOString().slice(0, 10)] ?? null;
+    $('weather-icon').textContent = forecast?.icon ?? '🌤️';
+    $('weather-number').textContent = typeof forecast?.temperature === 'number' ? `${Math.round(forecast.temperature)}°C` : '— °C';
+    $('weather-desc').textContent = forecast?.description || (state.weatherStatus === 'loading' ? 'Henter prognose…' : 'Værvarsel ikke tilgjengelig');
+    $('weather-extra').textContent = forecast ? [
+      typeof forecast.rainMm === 'number' ? `💧 ${forecast.rainApproximate ? 'ca. ' : ''}${String(forecast.rainMm).replace('.', ',')} mm` : null,
+      state.weatherStatus === 'stale' ? 'Eldre varsel' : 'Yr · kl. 08–15'
+    ].filter(Boolean).join(' · ') : 'Ingen oppdiktede værdata';
+  }
+  function renderWeekdays() {
+    $('weekdays').innerHTML = DAYS.map((name, i) => {
+      const expired = isExpiredSchoolDay(i, start.dow);
+      const active = state.day === i;
+      return `<button type="button" class="weekday${active && !expired ? ' active' : ''}" data-day="${i}" `+
+        `${expired ? 'disabled title="Dagen er utgått"' : ''} aria-pressed="${active && !expired}" aria-label="${esc(name)} ${esc(dayStr(i))}${expired ? ' – utgått' : ''}">`+
+        `<span class="day-label">${name.slice(0, 3)}</span><span class="day-number">${expired ? 'Utgått' : esc(dayStr(i))}</span></button>`;
+    }).join('');
+    $('weekdays').querySelectorAll('button:not(:disabled)').forEach(b => b.addEventListener('click', () => {
+      const index = Number(b.dataset.day);
+      if (isExpiredSchoolDay(index, norwayCalendar().dow)) return;
+      state.day = index;
+      render();
+    }));
+  }
+  const eventEmoji = (e) => ({bus:'🚌',waves:'🏊',trees:'🌳',activity:'🏃',music:'🎵',sparkles:'✨',scissors:'🛠️',sun:'☀️',gift:'🎁',book:'📚'})[e?.icon] || '📚';
+  const afterSchool = (grade) => afterSchoolForDay({grade, year:start.year, week:start.week, dayIndex:state.day});
+  function familyCard(grade) {
+    const g = state.grades[grade];
+    const status = state.statuses[grade];
+    const d = g?.days?.[dayName()];
+    const ev = d?.events?.[0];
+    const items = packItems(grade, dayName());
+    const saved = packed(grade, dayName());
+    const checked = items.filter(item => saved[item.label]).length;
+    const activity = afterSchool(grade);
+    const gradeColor = grade === '3' ? 'third' : 'seventh';
+    const sub = grade === '3' ? 'Rød gruppe' : 'Skole og fritid';
+    const focus = g ? `<div class="focus ${grade === '7' ? 'purple' : ''}"><span class="focus-icon">${eventEmoji(ev)}</span><div><strong>${esc(ev?.title || d?.subtitle || 'Ingen aktivitet oppgitt')}</strong><small>${esc(ev?.time || 'Skoledagen')}${d?.end ? ` · Slutt ${esc(d.end)}` : ''}</small></div></div>` :
+      `<div class="empty-state">${status === 'loading' ? 'Henter skoleplan…' : status === 'unpublished' ? 'Ukeplanen er ikke publisert ennå.' : 'Kunne ikke vise dagens skoleplan. Se skolens side.'}</div>`;
+    const activityHtml = activity ? `<div class="focus purple"><span class="focus-icon">${esc(activity.emoji)}</span><div><strong>${esc(activity.title)} · etter skolen</strong><small>${esc(activity.driverLabel)}</small></div></div>` : '';
+    const pills = g ? (items.length ? items.map(i => `<span class="thing-pill">${saved[i.label] ? '✓ ' : ''}${esc(i.label)}</span>`).join('') :
+      '<span class="thing-pill">Ingen ekstra ting oppgitt</span>') : '<span class="thing-pill">Venter på ukeplanen</span>';
+    return `<article class="family-card ${gradeColor}"><div class="family-name"><span class="avatar">${grade === '3' ? '🎨' : '🎧'}</span><div>${grade}. klasse<div class="class-sub">${sub}</div></div></div>`+
+      `<div class="status-word ${statusClass(grade)}">${esc(statusText(grade))}</div>${focus}${activityHtml}`+
+      `${g && d?.alert ? `<div class="family-notices">📣 ${esc(d.alert)}</div>` : ''}`+
+      `<div class="family-item-label">I skolesekken${g ? ` · ${checked}/${items.length} pakket` : ''}</div><div class="pill-group">${pills}</div>`+
+      `<div class="family-foot"><small>${grade === '3' ? '🎒 Sjekk sekken' : '📅 Skole og aktiviteter'}</small><button type="button" class="openbtn" data-open="${grade}">Vis dagen →</button></div></article>`;
+  }
+  function renderFamily() {
+    $('family-day').textContent = `${dayName()} ${fullDate(state.day)}`;
+    $('family-cards').innerHTML = ['3', '7'].map(familyCard).join('');
+    $('family-cards').querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => setMode(b.dataset.open)));
+    const themes = ['3', '7'].filter(g => state.grades[g]?.weekTheme).map(g =>
+      `<p><strong>${g}. klasse:</strong> ${esc(state.grades[g].weekTheme)}</p>`).join('');
+    $('family-bottom').innerHTML = `<div class="family-small"><h3>✨ Ukas superkrefter</h3>`+
+      (themes || '<p>Skolens uketema vises når det er hentet fra PDF.</p>') +
+      `</div><div class="family-small"><h3>📚 Lekser og beskjeder</h3><p>Velg 3. eller 7. klasse for å se lekser fordelt på fag, meldinger og pakkelisten.</p>`+
+      `<p><a href="${SECTIONS['3']}" target="_blank" rel="noopener noreferrer">3. trinn ↗</a> · <a href="${SECTIONS['7']}" target="_blank" rel="noopener noreferrer">7. trinn ↗</a></p></div>`;
+  }
+  function renderProgram(grade) {
+    const g = state.grades[grade];
+    const d = g?.days?.[dayName()];
+    const activity = afterSchool(grade);
+    const schoolEvents = (d?.events || []).map(e => `<div class="event-row ${['waves', 'trees'].includes(e.icon) ? 'orange' : ''}">`+
+      `<div class="event-symbol">${eventEmoji(e)}</div><div><div class="event-time">${esc(e.time || 'Skoledagen')}</div>`+
+      `<div class="event-title">${esc(e.title || 'Aktivitet')}</div>${e.detail ? `<p class="event-desc">${esc(e.detail)}</p>` : ''}</div></div>`).join('');
+    const empty = !g ? (state.statuses[grade] === 'loading' ? 'Henter dagens skoleplan…' : 'Ingen bekreftet skoleplan for denne uken. Se skolens side.') : 'Ingen egne aktiviteter er oppført for denne dagen. Se originalen for full timeplan.';
+    $('day-program').innerHTML = `<div class="section-label">${grade}. klasse${grade === '3' ? ' · Rød gruppe' : ''} · ${dayName()}</div>`+
+      `<div class="card-heading"><h2>📅 Dette skjer</h2>${d?.end ? `<span class="endtime">Slutt ${esc(d.end)}</span>` : ''}</div>`+
+      `${g && d?.alert ? `<div class="notice-alert">📣 ${esc(d.alert)}</div>` : ''}`+
+      `<div class="event-list">${schoolEvents || `<div class="empty-state">${esc(empty)}</div>`}</div>`+
+      (activity ? `<div class="after-block"><div class="head"><span>${esc(activity.emoji)}</span><strong>${esc(activity.title)} · etter skolen</strong></div>`+
+        `<div class="driver"><div><span class="day-flag">${activity.type === 'dance' ? 'Oppmøte for kjøring' : 'Kjøreansvar'}</span>`+
+        `<div><strong>${esc(activity.driverLabel)}</strong></div><small>${esc(activity.detail)}</small></div></div></div>` : '');
+  }
+  function renderBag(grade) {
+    const g = state.grades[grade];
+    const day = dayName();
+    const items = packItems(grade, day);
+    const saved = packed(grade, day);
+    const checked = items.filter(item => saved[item.label]).length;
+    const pct = items.length ? Math.round(100 * checked / items.length) : 0;
+    $('bag-section').innerHTML = `<div class="bag-top"><span class="bag-symbol">🎒</span><div><div class="section-label">Før du går hjemmefra</div><h2>Pakk sekken</h2></div></div>`+
+      `<p class="bag-caption">Kryss av det som er pakket til ${day.toLowerCase()}.</p>`+
+      `<div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="${items.length}" aria-valuenow="${checked}" aria-label="Pakkestatus"><div class="progress-fill" style="width:${pct}%"></div></div>`+
+      (items.length ? items.map(item => `<label class="pack-row ${saved[item.label] ? 'is-checked' : ''}"><input type="checkbox" data-pack="${esc(item.label)}" ${saved[item.label] ? 'checked' : ''}><span>${esc(item.label)}`+
+        (item.note ? `<span class="pack-note">${esc(item.note)}</span>` : '') + '</span></label>').join('') :
+        `<div class="empty-state">${!g ? 'Pakkelisten vises når skolen har publisert en lesbar ukeplan.' : 'Ingen ekstra utstyr registrert for dagen.'}</div>`) +
+      `<div class="pack-footer"><span>${checked} av ${items.length} pakket</span>${items.length && checked === items.length ? '<span class="ready-chip">✓ Sekken er klar!</span>' : ''}</div>`;
+    $('bag-section').querySelectorAll('input[data-pack]').forEach(input => input.addEventListener('change', () => storePack(grade, day, input.dataset.pack, input.checked)));
+  }
+  function renderHomework(grade) {
+    const homework = state.grades[grade]?.homework || [];
+    const subjects = [...new Set(homework.map(h => h.subject).filter(Boolean))];
+    if (!subjects.includes(state.subjects[grade])) state.subjects[grade] = subjects[0] || null;
+    const selected = homework.find(h => h.subject === state.subjects[grade]);
+    $('homework-section').innerHTML = `<div class="section-label">Når du har tid</div><h3><span class="emoji">📚</span> Ukens lekser</h3>`+
+      (subjects.length ? `<div class="hw-list">${subjects.map(s => `<button type="button" class="hw-btn ${s === state.subjects[grade] ? 'selected' : ''}" data-subject="${esc(s)}" aria-pressed="${s === state.subjects[grade]}">${esc(s)}</button>`).join('')}</div>`+
+        `<p class="hw-body">${esc(selected?.detail || 'Ingen tekst oppgitt.')}</p>` : '<div class="empty-state">Ingen lekser hentet fra ukens plan.</div>');
+    $('homework-section').querySelectorAll('[data-subject]').forEach(b => b.addEventListener('click', () => {
+      state.subjects[grade] = b.dataset.subject;
+      renderHomework(grade);
+    }));
+  }
+  function renderTheme(grade) {
+    const raw = state.grades[grade]?.weekTheme;
+    const presentation = themePresentation(raw);
+    const section = $('theme-section');
+    if (!presentation) {
+      section.innerHTML = '<div class="section-label">Fokus denne uken</div><h3><span class="emoji">✨</span> Ukas superkraft</h3><p class="small muted" style="margin-top:13px">Intet uketema funnet i skolens PDF.</p>';
+      section.classList.add('theme-hidden');
+      return;
+    }
+    section.classList.remove('theme-hidden');
+    const key = themeProgressKey(start.year, start.week, grade, presentation.theme);
+    let stored;
+    try { stored = JSON.parse(getLocal(key) || '{}'); } catch { stored = {}; }
+    const done = Boolean(stored.done);
+    const expanded = state.themeOpen[key] ?? done;
+    section.innerHTML = `<div class="section-label">Fokus denne uken</div><h3><span class="emoji">${esc(presentation.emoji)}</span> Ukas superkraft</h3>`+
+      `<p class="theme-title">${esc(presentation.theme)}</p><button class="reveal" type="button" id="quest-reveal" aria-expanded="${expanded}">${expanded ? 'Skjul minioppdrag ↑' : '🎲 Se minioppdrag →'}</button>`+
+      (expanded ? `<div class="quest"><div>🎯 ${esc(presentation.quest)}</div><p class="quest-caption">Frivillig forslag fra Skolesekken – ikke skolelekse.</p>`+
+        `<button type="button" id="mission-toggle" class="${done ? 'done' : ''}" aria-pressed="${done}">${done ? '✓ Oppdrag fullført!' : '✓ Jeg gjorde det!'}</button></div>` : '');
+    $('quest-reveal').addEventListener('click', () => {
+      state.themeOpen[key] = !expanded;
+      renderTheme(grade);
+    });
+    if (expanded) $('mission-toggle').addEventListener('click', () => {
+      setLocal(key, JSON.stringify({done: !done}));
+      state.themeOpen[key] = true;
+      renderTheme(grade);
+    });
+  }
+  function renderNotices(grade) {
+    const notices = state.grades[grade]?.notices || [];
+    $('notice-count').textContent = notices.length || '';
+    $('notices').innerHTML = notices.length ? notices.map(n =>
+      `<article class="note"><strong>${esc(n.title || 'Beskjed')}</strong>${n.detail ? `<p>${esc(n.detail)}</p>` : ''}</article>`).join('') :
+      '<p class="empty-state">Ingen ukebeskjeder hentet. Se originalplanen hvis du er i tvil.</p>';
+  }
+  function renderDetail() {
+    const grade = state.mode;
+    $('grade-status').textContent = statusText(grade);
+    $('grade-status').className = `status-word ${statusClass(grade)}`;
+    $('pdf-link').href = source(grade);
+    $('pdf-link').textContent = state.grades[grade]?.pdf ? 'Original ukeplan (PDF) ↗' : 'Åpne skolens trinnside ↗';
+    renderProgram(grade);
+    renderBag(grade);
+    renderHomework(grade);
+    renderTheme(grade);
+    renderNotices(grade);
+  }
+  function render() {
+    renderIntro();
+    renderWeather();
+    renderWeekdays();
+    renderWarnings();
+    $('family-view').classList.toggle('hidden', state.mode !== 'both');
+    $('detail-view').classList.toggle('hidden', state.mode === 'both');
+    if (state.mode === 'both') renderFamily(); else renderDetail();
+    $('refresh').disabled = state.fetching;
+  }
+  async function loadGrade(grade, fresh = false) {
+    // A cache is only displayed when the actual network fetch fails, and ONLY for this week.
+    try {
+      const url = `/api/plan?grade=${grade}${fresh ? `&fresh=1&_=${Date.now()}` : ''}`;
+      const response = await fetch(url, {cache: fresh ? 'no-store' : 'default'});
+      const result = await response.json();
+      if (!response.ok || result.status === 'error') throw new Error(result.warning || `HTTP ${response.status}`);
+      if (result.week !== start.week || result.year !== start.year) throw new Error('Feil ukenummer mottatt');
+      if (result.status === 'unpublished') {
+        state.grades[grade] = null;
+        state.statuses[grade] = 'unpublished';
+      } else {
+        if (!isCurrent(grade, result)) throw new Error('Ugyldig klasse- eller gruppedata');
+        state.grades[grade] = result;
+        state.statuses[grade] = result.status || 'partial';
+        cacheSet(grade, result);
+      }
+    } catch {
+      const backup = cacheGet(grade);
+      state.grades[grade] = backup;
+      state.statuses[grade] = backup ? 'cached' : 'error';
+    }
+    render();
+  }
+  const weatherCacheKey = 'skolesekken.weather.v1';
+  async function loadWeather(fresh = false) {
+    if (!state.weather) state.weatherStatus = 'loading';
+    renderWeather();
+    try {
+      const response = await fetch(`/api/weather${fresh ? `?fresh=1&_=${Date.now()}` : ''}`, {cache: fresh ? 'no-store' : 'default'});
+      const result = await response.json();
+      if (!response.ok || !result?.days || typeof result.days !== 'object') throw new Error('Manglende værmelding');
+      state.weather = result;
+      state.weatherStatus = result.stale ? 'stale' : 'ok';
+      setLocal(weatherCacheKey, JSON.stringify({savedAt:Date.now(), data:result}));
+    } catch {
+      let backup;
+      try { backup = JSON.parse(getLocal(weatherCacheKey) || 'null'); } catch { backup = null; }
+      if (backup?.data?.days && Date.now() - backup.savedAt < 4 * 3600000) {
+        state.weather = backup.data;
+        state.weatherStatus = 'stale';
+      } else {
+        state.weather = null;
+        state.weatherStatus = 'error';
+      }
+    }
+    renderWeather();
+  }
+  async function refreshAll(fresh = false) {
+    if (state.fetching) return;
+    state.fetching = true;
+    if (!fresh) {
+      state.statuses['3'] = 'loading';
+      state.statuses['7'] = 'loading';
+    }
+    render();
+    try { await Promise.all([loadGrade('3', fresh), loadGrade('7', fresh), loadWeather(fresh)]); }
+    finally { state.fetching = false; render(); }
+  }
+  document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => setMode(button.dataset.mode)));
+  $('.logo').addEventListener('click', (event) => { event.preventDefault(); setMode('both'); });
+  $('refresh').addEventListener('click', () => refreshAll(true));
+  render();
+  refreshAll();
+
+  // Refresh on every hour, local Norwegian date rollover, and return from sleeping tabs.
+  let reloading = false;
+  function reloadWhenDue() {
+    if (reloading) return;
+    if (hasCalendarDateChanged(start, norwayCalendar()) || hourlyRefreshDue(openedAt, Date.now())) {
+      reloading = true;
+      location.reload();
+    }
+  }
+  setInterval(reloadWhenDue, REFRESH_INTERVAL_MS);
+  setInterval(reloadWhenDue, 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reloadWhenDue(); });
+  window.addEventListener('focus', reloadWhenDue);
 })();
