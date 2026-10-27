@@ -200,11 +200,29 @@ import {norwayCalendar, isExpiredSchoolDay, hasCalendarDateChanged, hourlyRefres
     $('family-day').textContent = `${dayName()} ${fullDate(state.day)}`;
     $('family-cards').innerHTML = ['3', '7'].map(familyCard).join('');
     $('family-cards').querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => setMode(b.dataset.open)));
-    const themes = ['3', '7'].filter(g => state.grades[g]?.weekTheme).map(g =>
-      `<p><strong>${g}. klasse:</strong> ${esc(state.grades[g].weekTheme)}</p>`).join('');
-    $('family-bottom').innerHTML = `<div class="family-small"><h3>✨ Ukas superkrefter</h3>`+
-      (themes || '<p>Skolens uketema vises når det er hentet fra PDF.</p>') +
-      `</div><div class="family-small"><h3>📚 Lekser og beskjeder</h3><p>Velg 3. eller 7. klasse for å se lekser fordelt på fag, meldinger og pakkelisten.</p>`+
+    const themeCards = ['3', '7'].map(grade => {
+      const presentation = themePresentation(state.grades[grade]?.weekTheme);
+      if (!presentation) return '';
+      const key = themeProgressKey(start.year, start.week, grade, presentation.theme);
+      let stored;
+      try { stored = JSON.parse(getLocal(key) || '{}'); } catch { stored = {}; }
+      const done = Boolean(stored?.done);
+      return `<article class="family-theme tone-${esc(presentation.tone)}">`+
+        `<div class="family-theme-label"><span>${esc(presentation.emoji)} ${grade}. klasse · UKAS TEMA</span>`+
+        `${done ? '<span class="family-theme-done">✓ Gjennomført</span>' : ''}</div>`+
+        `<h3>${esc(presentation.title)}</h3>`+
+        `${presentation.subtitle ? `<p class="family-theme-subtitle">${esc(presentation.subtitle)}</p>` : ''}`+
+        `<p class="family-theme-quest"><span aria-hidden="true">🎯</span> ${esc(presentation.quest)}</p>`+
+        `<button type="button" class="family-theme-link" data-theme-grade="${grade}">${done ? 'Se oppdraget igjen' : 'Se og gjør oppdraget'} <span aria-hidden="true">→</span></button>`+
+        `</article>`;
+    }).filter(Boolean);
+    $('family-themes').innerHTML = themeCards.length ? `<div class="family-themes-heading"><span>✨ UKAS TEMA</span><small>Små handlinger gjør en forskjell</small></div>`+
+      `<div class="family-theme-grid">${themeCards.join('')}</div>` : '';
+    $('family-themes').querySelectorAll('[data-theme-grade]').forEach(button => button.addEventListener('click', () => {
+      setMode(button.dataset.themeGrade);
+      $('theme-section').scrollIntoView?.({behavior:'smooth', block:'center'});
+    }));
+    $('family-bottom').innerHTML = `<div class="family-small"><h3>📚 Lekser og beskjeder</h3><p>Velg 3. eller 7. klasse for lekser fordelt på fag og dagens skolebeskjeder.</p>`+
       `<p><a href="${SECTIONS['3']}" target="_blank" rel="noopener noreferrer">3. trinn ↗</a> · <a href="${SECTIONS['7']}" target="_blank" rel="noopener noreferrer">7. trinn ↗</a></p></div>`;
   }
   function renderProgram(grade) {
@@ -253,31 +271,37 @@ import {norwayCalendar, isExpiredSchoolDay, hasCalendarDateChanged, hourlyRefres
     }));
   }
   function renderTheme(grade) {
-    const raw = state.grades[grade]?.weekTheme;
-    const presentation = themePresentation(raw);
+    const presentation = themePresentation(state.grades[grade]?.weekTheme);
     const section = $('theme-section');
     if (!presentation) {
-      section.innerHTML = '<div class="section-label">Fokus denne uken</div><h3><span class="emoji">✨</span> Ukas superkraft</h3><p class="small muted" style="margin-top:13px">Intet uketema funnet i skolens PDF.</p>';
+      section.innerHTML = '';
       section.classList.add('theme-hidden');
       return;
     }
     section.classList.remove('theme-hidden');
+    section.className = `secondary-card theme-card tone-${presentation.tone}`;
     const key = themeProgressKey(start.year, start.week, grade, presentation.theme);
     let stored;
     try { stored = JSON.parse(getLocal(key) || '{}'); } catch { stored = {}; }
-    const done = Boolean(stored.done);
-    const expanded = state.themeOpen[key] ?? done;
-    section.innerHTML = `<div class="section-label">Fokus denne uken</div><h3><span class="emoji">${esc(presentation.emoji)}</span> Ukas superkraft</h3>`+
-      `<p class="theme-title">${esc(presentation.theme)}</p><button class="reveal" type="button" id="quest-reveal" aria-expanded="${expanded}">${expanded ? 'Skjul minioppdrag ↑' : '🎲 Se minioppdrag →'}</button>`+
-      (expanded ? `<div class="quest"><div>🎯 ${esc(presentation.quest)}</div><p class="quest-caption">Frivillig forslag fra Skolesekken – ikke skolelekse.</p>`+
-        `<button type="button" id="mission-toggle" class="${done ? 'done' : ''}" aria-pressed="${done}">${done ? '✓ Oppdrag fullført!' : '✓ Jeg gjorde det!'}</button></div>` : '');
-    $('quest-reveal').addEventListener('click', () => {
-      state.themeOpen[key] = !expanded;
+    const done = Boolean(stored?.done);
+    section.innerHTML = `<div class="theme-layout">`+
+      `<div class="theme-heading"><div class="theme-meta"><span>✨ UKAS TEMA</span><span>UKE ${start.week}</span></div>`+
+      `<div class="theme-face"><span class="theme-emoji" aria-hidden="true">${esc(presentation.emoji)}</span>`+
+      `<div><h2 class="theme-name">${esc(presentation.title)}</h2>`+
+      `${presentation.subtitle ? `<p class="theme-subtitle">${esc(presentation.subtitle)}</p>` : ''}</div></div>`+
+      `<p class="theme-school-note">Dette øver vi på denne uka.</p></div>`+
+      `<div class="theme-mission ${done ? 'is-done' : ''}"><div class="mission-eyebrow">🎯 DITT OPPDRAG DENNE UKA</div>`+
+      `<p class="mission-description">${esc(presentation.quest)}</p>`+
+      (done ? `<div class="mission-celebrate" role="status">🎉 Så bra! Du gjennomførte oppdraget!</div>`+
+        `<button type="button" id="mission-reset" class="mission-reset">Angre avkrysning</button>` :
+        `<button type="button" id="mission-toggle" class="mission-complete">✓ Jeg har gjort det!</button>`) +
+      `<p class="quest-caption">Frivillig forslag fra Skolesekken – ikke skolelekse.</p></div></div>`;
+    if (done) $('mission-reset').addEventListener('click', () => {
+      setLocal(key, JSON.stringify({done:false}));
       renderTheme(grade);
     });
-    if (expanded) $('mission-toggle').addEventListener('click', () => {
-      setLocal(key, JSON.stringify({done: !done}));
-      state.themeOpen[key] = true;
+    else $('mission-toggle').addEventListener('click', () => {
+      setLocal(key, JSON.stringify({done:true}));
       renderTheme(grade);
     });
   }
