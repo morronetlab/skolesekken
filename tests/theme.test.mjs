@@ -46,12 +46,27 @@ test('3.0 theme UI shows only a theme found in the fetched PDF',async()=>{
  const js=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
  assert.match(html,/id="theme-section"/);
  assert.match(js,/themePresentation\(state\.grades\[grade\]\?\.weekTheme\)/);
- assert.match(js,/classList\.add\('theme-hidden'\)/);
+ assert.match(js,/className = 'theme-card top-theme theme-hidden'/);
  assert.match(js,/themeProgressKey\(start.year, start.week, grade, presentation.theme\)/);
  assert.match(js,/Frivillig forslag fra Skolesekken/);
  assert.match(js,/DITT OPPDRAG DENNE UKA/);
  assert.match(js,/Jeg har gjort det!/);
  assert.doesNotMatch(js,/Ukas superkraft/);
  assert.doesNotMatch(js,/quest-reveal/);
- assert.match(html,/id="family-themes"/);
+ assert.doesNotMatch(html,/id="family-themes"/);
+ assert.ok(html.indexOf('id="theme-section"') < html.indexOf('id="weekdays"'));
+ assert.ok(html.indexOf('class="main-top"') < html.indexOf('id="theme-section"'));
+ assert.match(js,/mission-expand/);
+ assert.match(js,/themeOpen\[key\] = false/);
+});
+
+test('7th-grade PDF theme uses explicit labels, not a generic school period',()=>{
+ const sample=mk(['Periode: Solidaritet','Sosialt mål: Samarbeide','Ukas tema: Demokrati','Sosialt mål: Alle har en stemme']);
+ assert.equal(extractTheme(sample,'7'),'Demokrati · Alle har en stemme');
+ assert.equal(extractTheme(mk(['Periode: Solidaritet','Sosialt mål: Jeg bryr meg']),'7'),'');
+ assert.equal(extractTheme(mk(['Periode: Solidaritet','Sosialt mål: Jeg bryr meg']),'3'),'Solidaritet · Jeg bryr meg');
+ const a=analyzePdfPages(mk(['Ukas tema: Vennskap','Mandag','Tirsdag','Onsdag','Torsdag','Fredag']),'3','https://www.minskole.no/plan3.pdf',44,2026);
+ const b=analyzePdfPages(mk(['Periode: Solidaritet','Ukas tema: Respekt','Mandag','Tirsdag','Onsdag','Torsdag','Fredag']),'7','https://www.minskole.no/plan7.pdf',44,2026);
+ assert.equal(a.weekTheme,'Vennskap');
+ assert.equal(b.weekTheme,'Respekt');
 });
