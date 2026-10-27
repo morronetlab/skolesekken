@@ -1,8 +1,17 @@
-# Skolesekken 3.0.4 – Morgenklar 🎒
+# Skolesekken 3.0.5 – Morgenklar 🎒
 
 Komplett Netlify-app for **3. klasse (rød gruppe)** og **7. klasse** ved Fagerholt skole.
 
 Dette er **produksjonsprosjektet**, ikke den tidligere statiske designprototypen. Frontend er bygget om til 3.0-designet, mens eksisterende Netlify Functions for ukeplan og vær er videreført. Ingen uke 44-eksempeldata vises som gjeldende ukeplan.
+
+## Nytt i 3.0.5
+
+- **Ukas tema vises kun på barnets egen klasseside**, mellom hero og dagvelger. Familieoversikten viser ikke uketema.
+- **Mer presist tema per klassetrinn:** Et tydelig `Ukas tema` eller `Fokus` i klassens egen PDF prioriteres. Et generelt `Periode` behandles ikke som 7. klasses uketema. Hvis det ikke finnes et sikkert tema, utelates kortet. Tidligere plan-cache oppgraderes slik at mulig feilaktige tema ikke blir værende.
+- **Kompakt fullført oppdrag:** Etter «Jeg har gjort det!» krymper temakortet og kan åpnes igjen; man kan fortsatt angre.
+- **Regntøypåminnelse:** Et tydelig banner vises når den valgte skoledagens prognose fra Yr (ca. kl. 08–15) varsler regn/sludd. Ingen påminnelse ved tørre/manglende værdata.
+
+Det faktiske temaet for 7. klasse må fortsatt verifiseres mot skolens publiserte PDF; appen skal ikke dikte opp eller kopiere et tema fra 3. klasse.
 
 ## Rettet i 3.0.4
 
