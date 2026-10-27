@@ -39,7 +39,7 @@
     <aside class="weather" aria-label="Værmelding for valgt dag">
       <div class="weather-top"><span class="tag muted">VÆR PÅ SKOLEN</span><span class="pill">kl. 08–15</span></div>
       <div class="weather-main"><span class="weather-icon" id="weather-icon">🌤️</span><span class="weather-number" id="weather-number">— °C</span></div>
-      <p class="weather-sub" id="weather-desc">Henter prognose…</p>
+      <p class="weather-sub" id="weather-desc">Starter værvisning…</p>
       <div class="weather-foot"><span id="weather-extra"></span> · <a href="https://pent.no/58.14671,7.9956" target="_blank" rel="noopener noreferrer">Pent ↗</a></div>
     </aside>
   </div>
@@ -73,5 +73,15 @@
   </footer>
 </div>
 <script type="module" src="/app.js"></script>
+<script>
+// Helps diagnose deploys where a JS module failed to load altogether.
+setTimeout(function () {
+  if (window.__skolesekkenStarted) return;
+  var weather = document.getElementById('weather-desc');
+  if (weather) weather.textContent = 'Appen startet ikke – oppdater siden eller sjekk publiseringen.';
+  var alerts = document.getElementById('warnings');
+  if (alerts) alerts.innerHTML = '<div class="warning danger">Skolesekken klarte ikke å starte. Sjekk at alle filene i public-mappen er publisert.</div>';
+}, 7000);
+</script>
 </body>
 </html>

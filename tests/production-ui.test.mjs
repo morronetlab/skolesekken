@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {themePresentation, themeProgressKey} from '../public/theme.mjs';
 import {afterSchoolForDay} from '../public/after-school.mjs';
+import {fetchJsonWithTimeout as loadJson} from '../public/network.mjs';
 import {norwayCalendar, isExpiredSchoolDay, hasCalendarDateChanged, hourlyRefreshDue, REFRESH_INTERVAL_MS} from '../public/calendar.mjs';
 
 // Smoke-test the actual frontend script with a small DOM adapter and mocked APIs.
@@ -47,13 +48,14 @@ test('3.0 app starts, fetches two grades and displays live API data rather than 
     return {ok:true, json:async()=>data};
   };
   const raw=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
-  const body=raw.split('\n').slice(3).join('\n');
+  const body=raw.replace(/^import [^\n]*\n/gm, '');
   const fn=new Function('themePresentation','themeProgressKey','afterSchoolForDay','norwayCalendar',
-    'isExpiredSchoolDay','hasCalendarDateChanged','hourlyRefreshDue','REFRESH_INTERVAL_MS',
+    'isExpiredSchoolDay','hasCalendarDateChanged','hourlyRefreshDue','REFRESH_INTERVAL_MS','fetchJsonWithTimeout',
     'document','window','localStorage','history','location','fetch','setInterval',body);
   const win={addEventListener(){}};
   fn(themePresentation,themeProgressKey,afterSchoolForDay,norwayCalendar,isExpiredSchoolDay,
-    hasCalendarDateChanged,hourlyRefreshDue,REFRESH_INTERVAL_MS,document,win,localStorage,
+    hasCalendarDateChanged,hourlyRefreshDue,REFRESH_INTERVAL_MS,
+    (url,opts)=>loadJson(url,{...opts,fetchImpl:fetch}),document,win,localStorage,
     {replaceState(){}},{search:'',pathname:'/',reload(){}},fetch,()=>0);
   await new Promise(resolve=>setTimeout(resolve,5));
   assert.ok(calls.some(s=>s.includes('grade=3')));

@@ -1,5 +1,6 @@
 import {themePresentation, themeProgressKey} from './theme.mjs';
 import {afterSchoolForDay} from './after-school.mjs';
+import {fetchJsonWithTimeout} from './network.mjs';
 import {norwayCalendar, isExpiredSchoolDay, hasCalendarDateChanged, hourlyRefreshDue, REFRESH_INTERVAL_MS} from './calendar.mjs';
 
 // Skolesekken 3.0 «Morgenklar» — production UI for existing Netlify APIs.
@@ -23,6 +24,7 @@ import {norwayCalendar, isExpiredSchoolDay, hasCalendarDateChanged, hourlyRefres
     mode: initialMode, day: start.day, grades: {'3': null, '7': null},
     statuses: {'3': 'loading', '7': 'loading'},
     fetching: false, weather: null, weatherStatus: 'loading',
+    errors: {'3': null, '7': null}, weatherError: null,
     subjects: {'3': null, '7': null}, themeOpen: {},
   };
   const mondayOfWeek = (year, week) => {
@@ -82,12 +84,18 @@ import {norwayCalendar, isExpiredSchoolDay, hasCalendarDateChanged, hourlyRefres
   function statusText(grade) {
     const status = state.statuses[grade];
     return ({ok: 'Ukeplan oppdatert', partial: 'Delvis lest ukeplan', unreadable: 'Ufullstendig ukeplan',
-      loading: 'Henter ukeplan…', unpublished: 'Ukeplan ikke publisert', cached: 'Lagret kopi · samme uke',
+      loading: 'Henter ukeplan…', refreshing: 'Oppdaterer · lagret ukeplan', unpublished: 'Ukeplan ikke publisert', cached: 'Lagret kopi · samme uke',
       error: 'Ukeplan utilgjengelig'})[status] || 'Venter på ukeplan';
   }
   function statusClass(grade) {
     const status = state.statuses[grade];
-    return ['partial', 'unreadable', 'unpublished', 'cached'].includes(status) ? 'warn' : status === 'error' ? 'bad' : '';
+    return ['partial', 'unreadable', 'unpublished', 'cached', 'refreshing'].includes(status) ? 'warn' : status === 'error' ? 'bad' : '';
+  }
+  function errorExplanation(code, grade) {
+    if (code === 'missing_api') return `${grade}. klasse: Netlify-funksjonene ser ikke ut til å være publisert. Appen må publiseres fra hele GitHub-prosjektet, ikke bare public-mappen.`;
+    if (code === 'timeout') return `${grade}. klasse: Skolen eller Netlify bruker for lang tid. Prøv Oppdater, eller åpne ukeplanen hos skolen.`;
+    if (code === 'offline') return `${grade}. klasse: Ingen kontakt med serveren. Sjekk nettverket eller prøv igjen.`;
+    return `${grade}. klasse: Ukeplanen kan ikke hentes akkurat nå. Bruk lenken til skolen.`;
   }
   function noticesForSelectedView() {
     const grades = state.mode === 'both' ? ['3', '7'] : [state.mode];
@@ -101,9 +109,9 @@ import {norwayCalendar, isExpiredSchoolDay, hasCalendarDateChanged, hourlyRefres
       } else if (status === 'unpublished') {
         warnings.push({kind:'warning', text:`${name}: Skolen har ikke publisert en lesbar plan for uke ${start.week}.`});
       } else if (status === 'cached') {
-        warnings.push({kind:'warning', text:`${name}: Kun en tidligere hentet kopi fra samme uke er tilgjengelig. Sjekk originalen.`});
+        warnings.push({kind:'warning', text:`${name}: Viser lagret kopi for uke ${start.week}. ${errorExplanation(state.errors[grade], grade)}`});
       } else if (status === 'error') {
-        warnings.push({kind:'danger', text:`${name}: Kan ikke hente ukeplanen nå. Se originalen hos skolen eller prøv Oppdater.`});
+        warnings.push({kind:'danger', text:errorExplanation(state.errors[grade], grade)});
       }
     }
     return warnings;
@@ -143,7 +151,7 @@ import {norwayCalendar, isExpiredSchoolDay, hasCalendarDateChanged, hourlyRefres
     const forecast = state.weather?.days?.[schoolDate(state.day).toISOString().slice(0, 10)] ?? null;
     $('weather-icon').textContent = forecast?.icon ?? '🌤️';
     $('weather-number').textContent = typeof forecast?.temperature === 'number' ? `${Math.round(forecast.temperature)}°C` : '— °C';
-    $('weather-desc').textContent = forecast?.description || (state.weatherStatus === 'loading' ? 'Henter prognose…' : 'Værvarsel ikke tilgjengelig');
+    $('weather-desc').textContent = forecast?.description || (state.weatherStatus === 'loading' ? 'Henter prognose…' : state.weatherStatus === 'missing_api' ? 'Vær-API mangler på Netlify' : state.weatherStatus === 'timeout' ? 'Værtjenesten svarte ikke · prøv Oppdater' : 'Værvarsel ikke tilgjengelig');
     $('weather-extra').textContent = forecast ? [
       typeof forecast.rainMm === 'number' ? `💧 ${forecast.rainApproximate ? 'ca. ' : ''}${String(forecast.rainMm).replace('.', ',')} mm` : null,
       state.weatherStatus === 'stale' ? 'Eldre varsel' : 'Yr · kl. 08–15'
@@ -302,42 +310,66 @@ import {norwayCalendar, isExpiredSchoolDay, hasCalendarDateChanged, hourlyRefres
     if (state.mode === 'both') renderFamily(); else renderDetail();
     $('refresh').disabled = state.fetching;
   }
+  const weatherCacheKey = 'skolesekken.weather.v1';
+
+  // Show verified SAME-WEEK cached plans immediately; fetching can continue in parallel.
+  function restoreCachedData() {
+    for (const grade of ['3', '7']) {
+      const data = cacheGet(grade);
+      if (data) {
+        state.grades[grade] = data;
+        state.statuses[grade] = 'refreshing';
+      }
+    }
+    try {
+      const cached = JSON.parse(getLocal(weatherCacheKey) || 'null');
+      if (cached?.data?.days && Date.now() - cached.savedAt < 4 * 3600000) {
+        state.weather = cached.data;
+        state.weatherStatus = 'stale';
+      }
+    } catch { /* No reliable stored forecast. */ }
+  }
+
   async function loadGrade(grade, fresh = false) {
-    // A cache is only displayed when the actual network fetch fails, and ONLY for this week.
     try {
       const url = `/api/plan?grade=${grade}${fresh ? `&fresh=1&_=${Date.now()}` : ''}`;
-      const response = await fetch(url, {cache: fresh ? 'no-store' : 'default'});
-      const result = await response.json();
-      if (!response.ok || result.status === 'error') throw new Error(result.warning || `HTTP ${response.status}`);
-      if (result.week !== start.week || result.year !== start.year) throw new Error('Feil ukenummer mottatt');
+      const result = await fetchJsonWithTimeout(url, {timeoutMs: 18000, cache: fresh ? 'no-store' : 'default'});
+      if (result?.status === 'error') throw Object.assign(new Error(result.warning || 'Ukeplan utilgjengelig'), {code: 'server'});
+      if (result.week !== start.week || result.year !== start.year) throw Object.assign(new Error('Feil ukenummer'), {code:'invalid_api'});
+      state.errors[grade] = null;
       if (result.status === 'unpublished') {
         state.grades[grade] = null;
         state.statuses[grade] = 'unpublished';
       } else {
-        if (!isCurrent(grade, result)) throw new Error('Ugyldig klasse- eller gruppedata');
+        if (!isCurrent(grade, result)) throw Object.assign(new Error('Ugyldig klasse- eller gruppedata'), {code:'invalid_api'});
         state.grades[grade] = result;
         state.statuses[grade] = result.status || 'partial';
         cacheSet(grade, result);
       }
-    } catch {
+    } catch(err) {
+      state.errors[grade] = err?.code || 'server';
       const backup = cacheGet(grade);
       state.grades[grade] = backup;
       state.statuses[grade] = backup ? 'cached' : 'error';
+      console.warn(`Ukeplan ${grade}. trinn:`, err);
     }
     render();
   }
-  const weatherCacheKey = 'skolesekken.weather.v1';
+
   async function loadWeather(fresh = false) {
     if (!state.weather) state.weatherStatus = 'loading';
     renderWeather();
     try {
-      const response = await fetch(`/api/weather${fresh ? `?fresh=1&_=${Date.now()}` : ''}`, {cache: fresh ? 'no-store' : 'default'});
-      const result = await response.json();
-      if (!response.ok || !result?.days || typeof result.days !== 'object') throw new Error('Manglende værmelding');
+      const result = await fetchJsonWithTimeout(`/api/weather${fresh ? `?fresh=1&_=${Date.now()}` : ''}`, {
+        timeoutMs: 9000, cache: fresh ? 'no-store' : 'default'
+      });
+      if (!result?.days || typeof result.days !== 'object') throw Object.assign(new Error('Manglende værmelding'),{code:'invalid_api'});
       state.weather = result;
       state.weatherStatus = result.stale ? 'stale' : 'ok';
+      state.weatherError = null;
       setLocal(weatherCacheKey, JSON.stringify({savedAt:Date.now(), data:result}));
-    } catch {
+    } catch(err) {
+      state.weatherError = err?.code || 'server';
       let backup;
       try { backup = JSON.parse(getLocal(weatherCacheKey) || 'null'); } catch { backup = null; }
       if (backup?.data?.days && Date.now() - backup.savedAt < 4 * 3600000) {
@@ -345,17 +377,19 @@ import {norwayCalendar, isExpiredSchoolDay, hasCalendarDateChanged, hourlyRefres
         state.weatherStatus = 'stale';
       } else {
         state.weather = null;
-        state.weatherStatus = 'error';
+        state.weatherStatus = state.weatherError === 'missing_api' ? 'missing_api' :
+          state.weatherError === 'timeout' ? 'timeout' : 'error';
       }
+      console.warn('Værvarsel:', err);
     }
     renderWeather();
   }
+
   async function refreshAll(fresh = false) {
     if (state.fetching) return;
     state.fetching = true;
-    if (!fresh) {
-      state.statuses['3'] = 'loading';
-      state.statuses['7'] = 'loading';
+    for (const grade of ['3', '7']) {
+      state.statuses[grade] = state.grades[grade] ? 'refreshing' : 'loading';
     }
     render();
     try { await Promise.all([loadGrade('3', fresh), loadGrade('7', fresh), loadWeather(fresh)]); }
@@ -364,8 +398,10 @@ import {norwayCalendar, isExpiredSchoolDay, hasCalendarDateChanged, hourlyRefres
   document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => setMode(button.dataset.mode)));
   $('.logo').addEventListener('click', (event) => { event.preventDefault(); setMode('both'); });
   $('refresh').addEventListener('click', () => refreshAll(true));
+  restoreCachedData();
   render();
   refreshAll();
+  window.__skolesekkenStarted = true;
 
   // Refresh on every hour, local Norwegian date rollover, and return from sleeping tabs.
   let reloading = false;

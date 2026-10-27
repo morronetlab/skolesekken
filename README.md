@@ -1,4 +1,4 @@
-# Skolesekken 3.0 – Morgenklar 🎒
+# Skolesekken 3.0.1 – Morgenklar 🎒
 
 Komplett Netlify-app for **3. klasse (rød gruppe)** og **7. klasse** ved Fagerholt skole.
 
@@ -26,6 +26,7 @@ Dette er **produksjonsprosjektet**, ikke den tidligere statiske designprototypen
    package.json
    README.md
    public/
+     network.mjs
      index.html
      style.css
      app.js
