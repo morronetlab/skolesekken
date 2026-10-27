@@ -72,4 +72,11 @@ test('3.0 app starts, fetches two grades and displays live API data rather than 
   assert.match(get('day-program').innerHTML,/Testaktivitet fra API/);
   assert.match(get('homework-section').innerHTML,/Engelsk/);
   assert.match(get('theme-section').innerHTML,/Vennskap/);
+  assert.match(get('theme-section').innerHTML,/DITT OPPDRAG DENNE UKA/);
+  assert.match(get('theme-section').innerHTML,/Jeg har gjort det!/);
+  get('mission-toggle').handlers.click();
+  assert.match(get('theme-section').innerHTML,/Du gjennomførte oppdraget/);
+  assert.equal(typeof get('mission-reset').handlers.click, 'function');
+  get('mission-reset').handlers.click();
+  assert.match(get('theme-section').innerHTML,/Jeg har gjort det!/);
 });
