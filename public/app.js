@@ -1,4 +1,5 @@
 import {themePresentation, themeProgressKey} from './theme.mjs';
+import {homeworkStorageKey, homeworkItemKey} from './homework.mjs';
 import {afterSchoolForDay} from './after-school.mjs';
 import {fetchJsonWithTimeout} from './network.mjs';
 import {norwayCalendar, isExpiredSchoolDay, hasCalendarDateChanged, hourlyRefreshDue, REFRESH_INTERVAL_MS} from './calendar.mjs';
@@ -257,17 +258,52 @@ import {norwayCalendar, isExpiredSchoolDay, hasCalendarDateChanged, hourlyRefres
       `<div class="pack-footer"><span>${checked} av ${items.length} pakket</span>${items.length && checked === items.length ? '<span class="ready-chip">✓ Sekken er klar!</span>' : ''}</div>`;
     $('bag-section').querySelectorAll('input[data-pack]').forEach(input => input.addEventListener('change', () => storePack(grade, day, input.dataset.pack, input.checked)));
   }
+  // Real, per-item checkbox completion, separate for each child and week.
+  function homeworkDone(grade) {
+    try {
+      const value = JSON.parse(getLocal(homeworkStorageKey(start.year, start.week, grade)) || '{}');
+      return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    } catch { return {}; }
+  }
+  function setHomeworkDone(grade, item, done) {
+    const saved = homeworkDone(grade);
+    saved[homeworkItemKey(item)] = done;
+    setLocal(homeworkStorageKey(start.year, start.week, grade), JSON.stringify(saved));
+    renderHomework(grade);
+  }
   function renderHomework(grade) {
-    const homework = state.grades[grade]?.homework || [];
-    const subjects = [...new Set(homework.map(h => h.subject).filter(Boolean))];
+    const homework = (state.grades[grade]?.homework || []).filter(h => h?.subject && h?.detail);
+    const subjects = [...new Set(homework.map(h => h.subject))];
     if (!subjects.includes(state.subjects[grade])) state.subjects[grade] = subjects[0] || null;
-    const selected = homework.find(h => h.subject === state.subjects[grade]);
-    $('homework-section').innerHTML = `<div class="section-label">Når du har tid</div><h3><span class="emoji">📚</span> Ukens lekser</h3>`+
-      (subjects.length ? `<div class="hw-list">${subjects.map(s => `<button type="button" class="hw-btn ${s === state.subjects[grade] ? 'selected' : ''}" data-subject="${esc(s)}" aria-pressed="${s === state.subjects[grade]}">${esc(s)}</button>`).join('')}</div>`+
-        `<p class="hw-body">${esc(selected?.detail || 'Ingen tekst oppgitt.')}</p>` : '<div class="empty-state">Ingen lekser hentet fra ukens plan.</div>');
-    $('homework-section').querySelectorAll('[data-subject]').forEach(b => b.addEventListener('click', () => {
-      state.subjects[grade] = b.dataset.subject;
+    const saved = homeworkDone(grade);
+    const doneCount = homework.filter(h => saved[homeworkItemKey(h)]).length;
+    const current = homework.filter(h => h.subject === state.subjects[grade]);
+    const allDone = homework.length > 0 && doneCount === homework.length;
+    $('homework-section').innerHTML = `<div class="section-label">Din egen sjekkliste</div><h3><span class="emoji">📚</span> Ukens lekser</h3>` +
+      (subjects.length ? `<div class="hw-progress-info"><span>${doneCount} av ${homework.length} lekser gjort</span>` +
+        (allDone ? '<strong>🎉 Alle leksene er ferdige!</strong>' : '<span>Huk av når du er ferdig</span>') + `</div>` +
+        `<div class="hw-progress-track" role="progressbar" aria-label="Ferdige lekser" aria-valuemin="0" aria-valuemax="${homework.length}" aria-valuenow="${doneCount}">` +
+        `<div class="hw-progress-fill" style="width:${Math.round(doneCount * 100 / homework.length)}%"></div></div>` +
+        `<div class="hw-list" role="group" aria-label="Velg leksefag">${subjects.map(subject => {
+          const items = homework.filter(h => h.subject === subject);
+          const completed = items.filter(h => saved[homeworkItemKey(h)]).length;
+          return `<button type="button" class="hw-btn ${subject === state.subjects[grade] ? 'selected' : ''}" data-subject="${esc(subject)}" aria-pressed="${subject === state.subjects[grade]}">` +
+            `${esc(subject)} <span class="hw-subject-count">${completed}/${items.length}</span></button>`;
+        }).join('')}</div>` +
+        `<div class="hw-checklist">${current.map((item, index) => {
+          const checked = Boolean(saved[homeworkItemKey(item)]);
+          return `<label class="hw-check-row ${checked ? 'is-done' : ''}">` +
+            `<input type="checkbox" data-homework-index="${index}" ${checked ? 'checked' : ''}>` +
+            `<span class="hw-check-content"><span class="hw-check-copy">${esc(item.detail)}</span>` +
+            `<span class="hw-check-hint">${checked ? '✓ Leksen er gjort' : 'Trykk for å markere som gjort'}</span></span></label>`;
+        }).join('')}</div>` : '<div class="empty-state">Ingen lekser hentet fra ukens plan.</div>');
+    $('homework-section').querySelectorAll('[data-subject]').forEach(button => button.addEventListener('click', () => {
+      state.subjects[grade] = button.dataset.subject;
       renderHomework(grade);
+    }));
+    $('homework-section').querySelectorAll('input[data-homework-index]').forEach(input => input.addEventListener('change', () => {
+      const item = current[Number(input.dataset.homeworkIndex)];
+      if (item) setHomeworkDone(grade, item, input.checked);
     }));
   }
   function renderTheme(grade) {

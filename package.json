@@ -1,6 +1,6 @@
 {
   "name": "skolesekken-fagerholt",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "private": true,
   "type": "module",
   "description": "Morgenklar: familieoversikt med automatisk ukeplan, vær og fritidsaktiviteter.",
