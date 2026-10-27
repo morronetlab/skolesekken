@@ -21,7 +21,7 @@ test('3.0 app starts, fetches two grades and displays live API data rather than 
     addEventListener(name, fn) { this.handlers[name] = fn; }
     set innerHTML(value) { this._innerHTML = value; this.controls = {}; }
     get innerHTML() { return this._innerHTML; }
-    function querySelectorAll(selector) {
+    querySelectorAll(selector) {
       if (!['input[data-homework-index]', '[data-subject]'].includes(selector)) return [];
       if (!this.controls[selector]) {
         const regex = selector === 'input[data-homework-index]'
