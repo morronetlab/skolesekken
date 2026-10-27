@@ -7,11 +7,11 @@ export const DANCE_RIDES_2026=Object.freeze({
 /** dayIndex: Monday=0 .. Friday=4. ISO week is supplied by the UI. */
 export function afterSchoolForDay({grade,year,week,dayIndex}) {
   if (String(grade)!=='7' || !Number.isInteger(week) || week<1 || week>53 || !Number.isInteger(dayIndex) || dayIndex<0 || dayIndex>4) return null;
-  if(dayIndex===1 || dayIndex===3) {
+  if(dayIndex===0 || dayIndex===3) {
     const driver=year===2026?DANCE_RIDES_2026[week]||null:null;
     return {
       type:'dance', title:'Hip-hop dans', emoji:'💃',
-      weekday:dayIndex===1?'Tirsdag':'Torsdag', driver,
+      weekday:dayIndex===0?'Mandag':'Torsdag', driver,
       driverLabel:driver?`Hjem til ${driver}`:'Kjøreplan ikke oppgitt',
       detail:driver?`Jentene skal hjem til ${driver} for kjøring.`:`Det er ikke oppgitt hvem jentene skal hjem til for kjøring i uke ${week}.`,
       week, year, unknownDriver:!driver

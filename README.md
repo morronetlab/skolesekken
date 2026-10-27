@@ -106,9 +106,9 @@ Den medfølgende HTML-forhåndsvisningen er kun en **designdemo med illustrasjon
 ## Aktiviteter etter skolen – versjon 2.4
 
 Vises kun for **7. klasse** og følger ukedagen som velges, uavhengig av om skolens PDF er tilgjengelig.
-- **Tirsdag + torsdag:** Hip-hop dans. Fremhevet oppmøte for kjøring, basert på familiens egen kjøreplan.
+- **Mandag + torsdag:** Hip-hop dans. Fremhevet oppmøte for kjøring, basert på familiens egen kjøreplan.
 - **Onsdag:** Tennis. Maya kjører i partallsuker, Julie kjører i oddetallsuker.
-- **Mandag + fredag:** Ingen faste fritidsaktiviteter registrert; panelet skjules.
+- **Tirsdag + fredag:** Ingen faste fritidsaktiviteter registrert; panelet skjules.
 - Tydelige merker på dagskortene, egen stor aktivitetsseksjon ved valgt dag.
 
 Kjøreplan for dans gjelder **2026**: Nora (37, 42, 46), Smilla (39, 44, 48), Julie (38, 43, 47), Maya (41, 45, 49). Ved **uke 40 og 50–53**, eller i senere år, vil appen vise «Kjøreplan ikke oppgitt» – den gjetter ikke hvem som skal kjøre. Aktivitetsdagene vises likevel. Ingen klokkeslett er oppgitt, derfor gjettes heller ikke disse.
@@ -117,7 +117,7 @@ Fritidsaktivitetene er **familiens egne opplysninger** og ikke hentet fra skolen
 
 ### Rettelse i versjon 2.4.1
 
-Julie og Smilla har byttet danseuker. **Julie: uke 38, 43, 47. Smilla: uke 39, 44, 48.** Nora og Maya, samt tennisplanen, er uendret. I uke 44 går jentene hjem til **Smilla** for kjøring på tirsdag og torsdag.
+Julie og Smilla har byttet danseuker. **Julie: uke 38, 43, 47. Smilla: uke 39, 44, 48.** Nora og Maya, samt tennisplanen, er uendret. I uke 44 går jentene hjem til **Smilla** for kjøring på mandag og torsdag.
 
 ## Automatisk oppdatering og utgåtte dager – versjon 2.4.2
 
@@ -126,3 +126,7 @@ Julie og Smilla har byttet danseuker. **Julie: uke 38, 43, 47. Smilla: uke 39, 4
 - Tidligere skoledager i samme uke vises nedtonet, merket «Utgått» og deaktivert med HTML `disabled`. Fremtidige dager og dagens dag er klikkbare.
 - Lørdag og søndag er alle fem skoledager utgått. Appen viser fredagens informasjon som en historisk oppsummering uten aktivt dagkort, og gir beskjed om at neste uke vises fra mandag.
 - Datoer, uker og utgått-status følger norsk tid (`Europe/Oslo`) selv om nettbrettet eller mobilen skulle ha en annen tidssone.
+
+## Rettelse i versjon 2.4.3
+
+Hip-hop for 7. klasse er **mandag og torsdag**, ikke tirsdag og torsdag. Oppmøte for kjøring vises begge dagene. Tirsdag har ingen fast aktivitet; onsdag er fortsatt tennis. Kjøreukene og all annen funksjonalitet er uendret.
