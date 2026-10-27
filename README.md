@@ -1,8 +1,14 @@
-# Skolesekken 3.0.5 – Morgenklar 🎒
+# Skolesekken 3.0.6 – Morgenklar 🎒
 
 Komplett Netlify-app for **3. klasse (rød gruppe)** og **7. klasse** ved Fagerholt skole.
 
 Dette er **produksjonsprosjektet**, ikke den tidligere statiske designprototypen. Frontend er bygget om til 3.0-designet, mens eksisterende Netlify Functions for ukeplan og vær er videreført. Ingen uke 44-eksempeldata vises som gjeldende ukeplan.
+
+## Nytt i 3.0.6
+
+- **Læringsmål fra PDF:** Leser en eksplisitt merket læringsmålseksjon fra hver klasses egen ukeplan, med støtte for punktlister, fag og linjer som går over flere rader.
+- **Valgfri, lavprioritert visning:** «Læringsmål» ligger under «Beskjeder fra skolen» på klassesidene og skjules helt når ingen mål kan identifiseres.
+- Læringsmål er ikke lekser eller avkrysninger. Innholdet kommer fra PDF-en uten å finne på mål. «Begge»-visningen er uendret.
 
 ## Nytt i 3.0.5
 
