@@ -366,6 +366,21 @@ import {norwayCalendar, isExpiredSchoolDay, hasCalendarDateChanged, hourlyRefres
       `<article class="note"><strong>${esc(n.title || 'Beskjed')}</strong>${n.detail ? `<p>${esc(n.detail)}</p>` : ''}</article>`).join('') :
       '<p class="empty-state">Ingen ukebeskjeder hentet. Se originalplanen hvis du er i tvil.</p>';
   }
+  function renderLearningGoals(grade) {
+    const goals=state.grades[grade]?.learningGoals;
+    const safe=Array.isArray(goals) ? goals.filter(goal => typeof goal==='string' && goal.trim()) : [];
+    const section=$('learning-goals-details');
+    section.hidden = safe.length===0;
+    if (!safe.length) {
+      section.open=false;
+      $('learning-goals').innerHTML='';
+      $('learning-goals-count').textContent='';
+      return;
+    }
+    $('learning-goals-count').textContent=safe.length;
+    $('learning-goals').innerHTML='<ul class="learning-goal-list">'+
+      safe.map(goal=>`<li>${esc(goal)}</li>`).join('')+'</ul>';
+  }
   function renderDetail() {
     const grade = state.mode;
     $('grade-status').textContent = statusText(grade);
@@ -376,6 +391,7 @@ import {norwayCalendar, isExpiredSchoolDay, hasCalendarDateChanged, hourlyRefres
     renderBag(grade);
     renderHomework(grade);
     renderNotices(grade);
+    renderLearningGoals(grade);
   }
   function render() {
     renderIntro();

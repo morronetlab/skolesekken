@@ -43,7 +43,13 @@ test('3.0 app starts, fetches two grades and displays live API data rather than 
   // Catch class selectors used accidentally with getElementById.
   const get = id => {
     if (id.startsWith('.')) return null;
-    return nodes.get(id) || (nodes.set(id, new MockElement()),nodes.get(id));
+    if (!nodes.has(id)) {
+      const el = new MockElement();
+      // The optional learning-goals section is hidden in the initial HTML.
+      if (id === 'learning-goals-details') el.hidden = true;
+      nodes.set(id,el);
+    }
+    return nodes.get(id);
   };
   const buttons = ['both','3','7'].map(mode=>new MockElement({mode}));
   const logo = new MockElement();
@@ -63,7 +69,8 @@ test('3.0 app starts, fetches two grades and displays live API data rather than 
     group:grade==='3'?{key:'rød'}:undefined,
     days:{[ ['Mandag','Tirsdag','Onsdag','Torsdag','Fredag'][yearWeek.day] ]:{end:'14:00', events:[{title:'Testaktivitet fra API',icon:'book',time:'09:00'}],bring:[{label:'Drikkeflaske'}]}},
     everyday:[],homework:[{subject:'Norsk',detail:'Les til fredag'},{subject:'Engelsk',detail:'Read together'}],
-    notices:[],weekTheme:grade==='3'?'Solidaritet · Jeg bryr meg':'Respekt · Alle har en stemme'
+    notices:[],weekTheme:grade==='3'?'Solidaritet · Jeg bryr meg':'Respekt · Alle har en stemme',
+    learningGoals:grade==='3'?['Norsk: Jeg kan lese høyt.']:['Naturfag: Jeg kan forklare fotosyntesen.']
   });
   const calls=[];
   const fetch = async url => {
@@ -89,11 +96,15 @@ test('3.0 app starts, fetches two grades and displays live API data rather than 
   assert.equal(get('rain-reminder').hidden,false,'Rainwear warning must be visible on wet school day');
   assert.match(get('rain-reminder').innerHTML,/Husk regntøy før dere går ut!/);
   assert.equal(get('theme-section').innerHTML,'','Family view must not show a weekly theme');
+  assert.equal(get('learning-goals-details').hidden, true, 'Family view must not show learning goals');
   assert.equal(pageBody.handlers.click, undefined, 'Never bind mode switch to body: bubbling checkbox clicks would cancel native change events');
   assert.match(get('family-cards').innerHTML,/Testaktivitet fra API/);
   assert.doesNotMatch(get('family-cards').innerHTML,/Solidaritet · Jeg bryr meg/);
   buttons[2].handlers.click();
   assert.match(get('day-program').innerHTML,/Testaktivitet fra API/);
+  assert.equal(get('learning-goals-details').hidden,false);
+  assert.match(get('learning-goals').innerHTML,/fotosyntesen/);
+  assert.doesNotMatch(get('learning-goals').innerHTML,/lese høyt/);
   // Test schoolbag checkbox behavior independently of homework controls.
   const bagUI = get('bag-section');
   assert.match(bagUI.innerHTML, /0 av 1 pakket/);
@@ -106,6 +117,9 @@ test('3.0 app starts, fetches two grades and displays live API data rather than 
   const packStorageKey = `skolesekken.pack.v6.${yearWeek.year}.${yearWeek.week}.7.${['Mandag','Tirsdag','Onsdag','Torsdag','Fredag'][yearWeek.day]}`;
   assert.equal(JSON.parse(local.get(packStorageKey)).Drikkeflaske, true);
   buttons[1].handlers.click();
+  assert.equal(get('learning-goals-details').hidden,false);
+  assert.match(get('learning-goals').innerHTML,/lese høyt/);
+  assert.doesNotMatch(get('learning-goals').innerHTML,/fotosyntesen/);
   assert.match(bagUI.innerHTML, /0 av 1 pakket/);
   buttons[2].handlers.click();
   assert.match(bagUI.innerHTML, /1 av 1 pakket/);
