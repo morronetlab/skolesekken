@@ -37,3 +37,9 @@ body[data-mode="7"] .headline .kicker{color:#7b6ab8}
 .hw-check-row.is-done .hw-check-copy{text-decoration:line-through;color:#6d8a77}
 .hw-check-row.is-done .hw-check-hint{color:#288057}
 @media(max-width:700px){.hw-check-row{padding:15px 12px}.hw-check-copy{font-size:14px}.hw-check-row input[type="checkbox"]{width:25px;height:25px;flex-basis:25px}}
+
+/* Low-priority weekly goals sourced only from an explicit PDF section. */
+.learning-goals[hidden]{display:none!important}
+.learning-goals{margin-top:12px}
+.learning-goal-list{margin:0;padding:15px 0 17px 23px;display:grid;gap:12px;color:#5e776d;font-size:13px;line-height:1.6}
+.learning-goal-list li{padding-left:3px;overflow-wrap:anywhere}
