@@ -1,8 +1,13 @@
-# Skolesekken 3.0.3 – Morgenklar 🎒
+# Skolesekken 3.0.4 – Morgenklar 🎒
 
 Komplett Netlify-app for **3. klasse (rød gruppe)** og **7. klasse** ved Fagerholt skole.
 
 Dette er **produksjonsprosjektet**, ikke den tidligere statiske designprototypen. Frontend er bygget om til 3.0-designet, mens eksisterende Netlify Functions for ukeplan og vær er videreført. Ingen uke 44-eksempeldata vises som gjeldende ukeplan.
+
+## Rettet i 3.0.4
+
+- **Avkrysningsboksene i pakkelisten og leksene fungerer igjen:** Klassevelgeren lytter nå bare på klasseknappene, ikke på hele siden. Tidligere stoppet klikket avkrysningen før lagring.
+- Kontrollert i Chromium med ekte klikk på avkrysningsboksen og hele raden, inkludert lagring, og med automatiserte regresjonstester.
 
 ## Hva er nytt i 3.0.3?
 
