@@ -24,6 +24,9 @@ test('weekTheme passes through to correct grade plan, not earlier week',()=>{
 });
 test('theme UI challenge suggestions are independent from school PDF text',()=>{
  assert.equal(themePresentation('Solidaritet · Jeg bryr meg').emoji,'💛');
+ assert.equal(themePresentation('Solidaritet · Jeg bryr meg').title,'Solidaritet');
+ assert.equal(themePresentation('Solidaritet · Jeg bryr meg').subtitle,'Jeg bryr meg');
+ assert.equal(themePresentation('Vennskap').title,'Vennskap');
  assert.match(themePresentation('Solidaritet · Alle har en stemme').quest,/lytt/i);
  assert.equal(themePresentation(''),null);
  const unknown=themePresentation('Matematikkens mysterier');
@@ -42,8 +45,13 @@ test('3.0 theme UI shows only a theme found in the fetched PDF',async()=>{
  const html=readFileSync(new URL('../public/index.html',import.meta.url),'utf8');
  const js=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
  assert.match(html,/id="theme-section"/);
- assert.match(js,/themePresentation\(raw\)/);
+ assert.match(js,/themePresentation\(state\.grades\[grade\]\?\.weekTheme\)/);
  assert.match(js,/classList\.add\('theme-hidden'\)/);
  assert.match(js,/themeProgressKey\(start.year, start.week, grade, presentation.theme\)/);
  assert.match(js,/Frivillig forslag fra Skolesekken/);
+ assert.match(js,/DITT OPPDRAG DENNE UKA/);
+ assert.match(js,/Jeg har gjort det!/);
+ assert.doesNotMatch(js,/Ukas superkraft/);
+ assert.doesNotMatch(js,/quest-reveal/);
+ assert.match(html,/id="family-themes"/);
 });
