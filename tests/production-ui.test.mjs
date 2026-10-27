@@ -21,7 +21,11 @@ test('3.0 app starts, fetches two grades and displays live API data rather than 
     querySelectorAll() { return []; }
   }
   const nodes = new Map();
-  const get = id => nodes.get(id) || (nodes.set(id, new MockElement()),nodes.get(id));
+  // Catch class selectors used accidentally with getElementById.
+  const get = id => {
+    if (id.startsWith('.')) return null;
+    return nodes.get(id) || (nodes.set(id, new MockElement()),nodes.get(id));
+  };
   const buttons = ['both','3','7'].map(mode=>new MockElement({mode}));
   const logo = new MockElement();
   const document = {
@@ -61,6 +65,7 @@ test('3.0 app starts, fetches two grades and displays live API data rather than 
   assert.ok(calls.some(s=>s.includes('grade=3')));
   assert.ok(calls.some(s=>s.includes('grade=7')));
   assert.ok(calls.some(s=>s.startsWith('/api/weather')));
+  assert.equal(win.__skolesekkenStarted, true, 'App must finish bootstrapping');
   assert.match(get('family-cards').innerHTML,/Testaktivitet fra API/);
   assert.doesNotMatch(get('family-cards').innerHTML,/Solidaritet · Jeg bryr meg/);
   buttons[2].handlers.click();

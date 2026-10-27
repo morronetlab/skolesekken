@@ -396,7 +396,7 @@ import {norwayCalendar, isExpiredSchoolDay, hasCalendarDateChanged, hourlyRefres
     finally { state.fetching = false; render(); }
   }
   document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => setMode(button.dataset.mode)));
-  $('.logo').addEventListener('click', (event) => { event.preventDefault(); setMode('both'); });
+  document.querySelector('.logo').addEventListener('click', (event) => { event.preventDefault(); setMode('both'); });
   $('refresh').addEventListener('click', () => refreshAll(true));
   restoreCachedData();
   render();
